@@ -95,14 +95,8 @@ static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
 		if (context->debug_channel)
 			WTSVirtualChannelClose(context->debug_channel);
 
-		sf_peer_audin_uninit(context);
-
-#if defined(CHANNEL_AINPUT_SERVER)
-		sf_peer_ainput_uninit(context);
-#endif
-
-		rdpsnd_server_context_free(context->rdpsnd);
-		encomsp_server_context_free(context->encomsp);
+		//rdpsnd_server_context_free(context->rdpsnd);
+		//encomsp_server_context_free(context->encomsp);
 
 		WTSCloseServer((HANDLE)context->vcm);
 	}
@@ -304,110 +298,6 @@ out:
 	return ret;
 }
 
-static int open_icon(wImage* img)
-{
-	char* paths[] = { "." };
-	const char* names[] = { "test_icon.webp", "test_icon.png", "test_icon.jpg", "test_icon.bmp" };
-
-	for (size_t x = 0; x < ARRAYSIZE(paths); x++)
-	{
-		const char* path = paths[x];
-		if (!winpr_PathFileExists(path))
-			continue;
-
-		for (size_t y = 0; y < ARRAYSIZE(names); y++)
-		{
-			const char* name = names[y];
-			char* file = GetCombinedPath(path, name);
-			int rc = winpr_image_read(img, file);
-			free(file);
-			if (rc > 0)
-				return rc;
-		}
-	}
-	WLog_ERR(TAG, "Unable to open test icon");
-	return -1;
-}
-
-static BOOL test_peer_load_icon(freerdp_peer* client)
-{
-	testPeerContext* context = NULL;
-	rdpSettings* settings = NULL;
-
-	WINPR_ASSERT(client);
-
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	settings = client->context->settings;
-	WINPR_ASSERT(settings);
-
-	if (!freerdp_settings_get_bool(settings, FreeRDP_RemoteFxCodec) &&
-	    !freerdp_settings_get_bool(settings, FreeRDP_NSCodec))
-	{
-		WLog_ERR(TAG, "Client doesn't support RemoteFX or NSCodec");
-		return FALSE;
-	}
-
-	int rc = open_icon(context->image);
-	if (rc <= 0)
-		goto out_fail;
-
-	/* background with same size, which will be used to erase the icon from old position */
-	if (!(context->bg_data = calloc(context->image->height, context->image->width * 3)))
-		goto out_fail;
-
-	memset(context->bg_data, 0xA0, context->image->height * context->image->width * 3ull);
-	return TRUE;
-out_fail:
-	context->bg_data = NULL;
-	return FALSE;
-}
-
-
-
-static BOOL test_sleep_tsdiff(UINT32* old_sec, UINT32* old_usec, UINT32 new_sec, UINT32 new_usec)
-{
-	INT64 sec = 0;
-	INT64 usec = 0;
-
-	WINPR_ASSERT(old_sec);
-	WINPR_ASSERT(old_usec);
-
-	if ((*old_sec == 0) && (*old_usec == 0))
-	{
-		*old_sec = new_sec;
-		*old_usec = new_usec;
-		return TRUE;
-	}
-
-	sec = new_sec - *old_sec;
-	usec = new_usec - *old_usec;
-
-	if ((sec < 0) || ((sec == 0) && (usec < 0)))
-	{
-		WLog_ERR(TAG, "Invalid time stamp detected.");
-		return FALSE;
-	}
-
-	*old_sec = new_sec;
-	*old_usec = new_usec;
-
-	while (usec < 0)
-	{
-		usec += 1000000;
-		sec--;
-	}
-
-	if (sec > 0)
-		Sleep((DWORD)sec * 1000);
-
-	if (usec > 0)
-		USleep((DWORD)usec);
-
-	return TRUE;
-}
-
 
 static BOOL tf_peer_post_connect(freerdp_peer* client)
 {
@@ -447,7 +337,7 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 	         freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
 	         freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight),
 	         freerdp_settings_get_uint32(settings, FreeRDP_ColorDepth));
-#if (SAMPLE_SERVER_USE_CLIENT_RESOLUTION == 1)
+
 
 	if (!rfx_context_reset(context->rfx_context,
 	                       freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
@@ -455,41 +345,10 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 		return FALSE;
 
 	WLog_DBG(TAG, "Using resolution requested by client.");
-#else
-	client->freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth) =
-	    context->rfx_context->width;
-	client->freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight) =
-	    context->rfx_context->height;
-	WLog_DBG(TAG, "Resizing client to %" PRIu32 "x%" PRIu32 "",
-	         client->freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
-	         client->freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight));
-	client->update->DesktopResize(client->update->context);
-#endif
 
-	/* A real server should tag the peer as activated here and start sending updates in main loop.
-	 */
-	if (!test_peer_load_icon(client))
-	{
-		WLog_DBG(TAG, "Unable to load icon");
-		return FALSE;
-	}
 
-	if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, RDPSND_CHANNEL_NAME))
-	{
-		sf_peer_rdpsnd_init(context); /* Audio Output */
-	}
+	/* A real server should tag the peer as activated here and start sending updates in main loop. */
 
-	if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, ENCOMSP_SVC_CHANNEL_NAME))
-	{
-		sf_peer_encomsp_init(context); /* Lync Multiparty */
-	}
-
-	/* Dynamic Virtual Channels */
-	sf_peer_audin_init(context); /* Audio Input */
-
-#if defined(CHANNEL_AINPUT_SERVER)
-	sf_peer_ainput_init(context);
-#endif
 
 	/* Return FALSE here would stop the execution of the peer main loop. */
 	return TRUE;
