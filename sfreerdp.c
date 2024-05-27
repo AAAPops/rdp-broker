@@ -364,134 +364,7 @@ out_fail:
 	return FALSE;
 }
 
-static void test_peer_draw_icon(freerdp_peer* client, UINT32 x, UINT32 y)
-{
-	wStream* s = NULL;
-	RFX_RECT rect;
-	rdpUpdate* update = NULL;
-	rdpSettings* settings = NULL;
-	SURFACE_BITS_COMMAND cmd = { 0 };
-	testPeerContext* context = NULL;
 
-	WINPR_ASSERT(client);
-
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	update = client->context->update;
-	WINPR_ASSERT(update);
-
-	settings = client->context->settings;
-	WINPR_ASSERT(settings);
-
-	if (freerdp_settings_get_bool(settings, FreeRDP_DumpRemoteFx))
-		return;
-
-	if (context->image->width < 1 || !context->activated)
-		return;
-
-	rect.x = 0;
-	rect.y = 0;
-	rect.width = context->image->width;
-	rect.height = context->image->height;
-
-	const UINT32 w = freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth);
-	const UINT32 h = freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight);
-	if (context->icon_x + context->image->width > w)
-		return;
-	if (context->icon_y + context->image->height > h)
-		return;
-	if (x + context->image->width > w)
-		return;
-	if (y + context->image->height > h)
-		return;
-
-	test_peer_begin_frame(client);
-	const BOOL RemoteFxCodec = freerdp_settings_get_bool(settings, FreeRDP_RemoteFxCodec);
-	if (RemoteFxCodec)
-	{
-		const UINT32 RemoteFxCodecId =
-		    freerdp_settings_get_uint32(settings, FreeRDP_RemoteFxCodecId);
-		WINPR_ASSERT(RemoteFxCodecId <= UINT16_MAX);
-		cmd.bmp.codecID = (UINT16)RemoteFxCodecId;
-		cmd.cmdType = CMDTYPE_STREAM_SURFACE_BITS;
-	}
-	else
-	{
-		const UINT32 NSCodecId = freerdp_settings_get_uint32(settings, FreeRDP_NSCodecId);
-		WINPR_ASSERT(NSCodecId <= UINT16_MAX);
-		cmd.bmp.codecID = (UINT16)NSCodecId;
-		cmd.cmdType = CMDTYPE_SET_SURFACE_BITS;
-	}
-
-	if (context->icon_x != UINT32_MAX)
-	{
-		const UINT32 colorFormat = PIXEL_FORMAT_RGB24;
-		const UINT32 bpp = FreeRDPGetBytesPerPixel(colorFormat);
-		s = test_peer_stream_init(context);
-
-		if (RemoteFxCodec)
-		{
-			rfx_context_set_pixel_format(context->rfx_context, colorFormat);
-			rfx_compose_message(context->rfx_context, s, &rect, 1, context->bg_data, rect.width,
-			                    rect.height, rect.width * bpp);
-		}
-		else
-		{
-			nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, colorFormat);
-			nsc_compose_message(context->nsc_context, s, context->bg_data, rect.width, rect.height,
-			                    rect.width * bpp);
-		}
-
-		cmd.destLeft = context->icon_x;
-		cmd.destTop = context->icon_y;
-		cmd.destRight = context->icon_x + rect.width;
-		cmd.destBottom = context->icon_y + rect.height;
-		cmd.bmp.bpp = 32;
-		cmd.bmp.flags = 0;
-		cmd.bmp.width = rect.width;
-		cmd.bmp.height = rect.height;
-		cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s);
-		cmd.bmp.bitmapData = Stream_Buffer(s);
-		WINPR_ASSERT(update->SurfaceBits);
-		update->SurfaceBits(update->context, &cmd);
-	}
-
-	s = test_peer_stream_init(context);
-
-	{
-		const UINT32 colorFormat =
-		    context->image->bitsPerPixel > 24 ? PIXEL_FORMAT_BGRA32 : PIXEL_FORMAT_BGR24;
-
-		if (RemoteFxCodec)
-		{
-			rfx_context_set_pixel_format(context->rfx_context, colorFormat);
-			rfx_compose_message(context->rfx_context, s, &rect, 1, context->image->data, rect.width,
-			                    rect.height, context->image->scanline);
-		}
-		else
-		{
-			nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, colorFormat);
-			nsc_compose_message(context->nsc_context, s, context->image->data, rect.width,
-			                    rect.height, context->image->scanline);
-		}
-	}
-
-	cmd.destLeft = x;
-	cmd.destTop = y;
-	cmd.destRight = x + rect.width;
-	cmd.destBottom = y + rect.height;
-	cmd.bmp.bpp = 32;
-	cmd.bmp.width = rect.width;
-	cmd.bmp.height = rect.height;
-	cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s);
-	cmd.bmp.bitmapData = Stream_Buffer(s);
-	WINPR_ASSERT(update->SurfaceBits);
-	update->SurfaceBits(update->context, &cmd);
-	context->icon_x = x;
-	context->icon_y = y;
-	test_peer_end_frame(client);
-}
 
 static BOOL test_sleep_tsdiff(UINT32* old_sec, UINT32* old_usec, UINT32 new_sec, UINT32 new_usec)
 {
@@ -535,135 +408,6 @@ static BOOL test_sleep_tsdiff(UINT32* old_sec, UINT32* old_usec, UINT32 new_sec,
 	return TRUE;
 }
 
-static BOOL tf_peer_dump_rfx(freerdp_peer* client)
-{
-	BOOL rc = FALSE;
-	wStream* s = NULL;
-	UINT32 prev_seconds = 0;
-	UINT32 prev_useconds = 0;
-	rdpUpdate* update = NULL;
-	rdpPcap* pcap_rfx = NULL;
-	pcap_record record = { 0 };
-	struct server_info* info = NULL;
-
-	WINPR_ASSERT(client);
-	WINPR_ASSERT(client->context);
-
-	info = client->ContextExtra;
-	WINPR_ASSERT(info);
-
-	s = Stream_New(NULL, 512);
-
-	if (!s)
-		return FALSE;
-
-	update = client->context->update;
-	WINPR_ASSERT(update);
-
-	pcap_rfx = pcap_open(info->test_pcap_file, FALSE);
-	if (!pcap_rfx)
-		goto fail;
-
-	prev_seconds = prev_useconds = 0;
-
-	while (pcap_has_next_record(pcap_rfx))
-	{
-		if (!pcap_get_next_record_header(pcap_rfx, &record))
-			break;
-
-		if (!Stream_EnsureCapacity(s, record.length))
-			break;
-
-		record.data = Stream_Buffer(s);
-		pcap_get_next_record_content(pcap_rfx, &record);
-		Stream_SetPosition(s, Stream_Capacity(s));
-
-		if (info->test_dump_rfx_realtime &&
-		    test_sleep_tsdiff(&prev_seconds, &prev_useconds, record.header.ts_sec,
-		                      record.header.ts_usec) == FALSE)
-			break;
-
-		WINPR_ASSERT(update->SurfaceCommand);
-		update->SurfaceCommand(update->context, s);
-
-		WINPR_ASSERT(client->CheckFileDescriptor);
-		if (client->CheckFileDescriptor(client) != TRUE)
-			break;
-	}
-
-	rc = TRUE;
-fail:
-	Stream_Free(s, TRUE);
-	pcap_close(pcap_rfx);
-	return rc;
-}
-
-static DWORD WINAPI tf_debug_channel_thread_func(LPVOID arg)
-{
-	void* fd = NULL;
-	wStream* s = NULL;
-	void* buffer = NULL;
-	DWORD BytesReturned = 0;
-	ULONG written = 0;
-	testPeerContext* context = (testPeerContext*)arg;
-
-	WINPR_ASSERT(context);
-	if (WTSVirtualChannelQuery(context->debug_channel, WTSVirtualFileHandle, &buffer,
-	                           &BytesReturned) == TRUE)
-	{
-		fd = *((void**)buffer);
-		WTSFreeMemory(buffer);
-
-		if (!(context->event = CreateWaitObjectEvent(NULL, TRUE, FALSE, fd)))
-			return 0;
-	}
-
-	s = Stream_New(NULL, 4096);
-	WTSVirtualChannelWrite(context->debug_channel, (PCHAR) "test1", 5, &written);
-
-	while (1)
-	{
-		DWORD status = 0;
-		DWORD nCount = 0;
-		HANDLE handles[MAXIMUM_WAIT_OBJECTS] = { 0 };
-
-		handles[nCount++] = context->event;
-		handles[nCount++] = freerdp_abort_event(&context->_p);
-		handles[nCount++] = context->stopEvent;
-		status = WaitForMultipleObjects(nCount, handles, FALSE, INFINITE);
-		switch (status)
-		{
-			case WAIT_OBJECT_0:
-				break;
-			default:
-				goto fail;
-		}
-
-		Stream_SetPosition(s, 0);
-
-		if (WTSVirtualChannelRead(context->debug_channel, 0, (PCHAR)Stream_Buffer(s),
-		                          (ULONG)Stream_Capacity(s), &BytesReturned) == FALSE)
-		{
-			if (BytesReturned == 0)
-				break;
-
-			Stream_EnsureRemainingCapacity(s, BytesReturned);
-
-			if (WTSVirtualChannelRead(context->debug_channel, 0, (PCHAR)Stream_Buffer(s),
-			                          (ULONG)Stream_Capacity(s), &BytesReturned) == FALSE)
-			{
-				/* should not happen */
-				break;
-			}
-		}
-
-		Stream_SetPosition(s, BytesReturned);
-		WLog_DBG(TAG, "got %" PRIu32 " bytes", BytesReturned);
-	}
-fail:
-	Stream_Free(s, TRUE);
-	return 0;
-}
 
 static BOOL tf_peer_post_connect(freerdp_peer* client)
 {
@@ -730,31 +474,6 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 		return FALSE;
 	}
 
-	if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, "rdpdbg"))
-	{
-		context->debug_channel = WTSVirtualChannelOpen(context->vcm, WTS_CURRENT_SESSION, "rdpdbg");
-
-		if (context->debug_channel != NULL)
-		{
-			WLog_DBG(TAG, "Open channel rdpdbg.");
-
-			if (!(context->stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL)))
-			{
-				WLog_ERR(TAG, "Failed to create stop event");
-				return FALSE;
-			}
-
-			if (!(context->debug_channel_thread =
-			          CreateThread(NULL, 0, tf_debug_channel_thread_func, (void*)context, 0, NULL)))
-			{
-				WLog_ERR(TAG, "Failed to create debug channel thread");
-				CloseHandle(context->stopEvent);
-				context->stopEvent = NULL;
-				return FALSE;
-			}
-		}
-	}
-
 	if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, RDPSND_CHANNEL_NAME))
 	{
 		sf_peer_rdpsnd_init(context); /* Audio Output */
@@ -800,249 +519,12 @@ static BOOL tf_peer_activate(freerdp_peer* client)
 	if (!freerdp_settings_set_uint32(settings, FreeRDP_CompressionLevel, PACKET_COMPR_TYPE_RDP8))
 		return FALSE;
 
-	if (info->test_pcap_file != NULL)
-	{
-		if (!freerdp_settings_set_bool(settings, FreeRDP_DumpRemoteFx, TRUE))
-			return FALSE;
-
-		if (!tf_peer_dump_rfx(client))
-			return FALSE;
-	}
-	else
-		test_peer_draw_background(client);
+	test_peer_draw_background(client);
 
 	return TRUE;
 }
 
-static BOOL tf_peer_synchronize_event(rdpInput* input, UINT32 flags)
-{
-	WINPR_UNUSED(input);
-	WINPR_ASSERT(input);
-	WLog_DBG(TAG, "Client sent a synchronize event (flags:0x%" PRIX32 ")", flags);
-	return TRUE;
-}
 
-static BOOL tf_peer_keyboard_event(rdpInput* input, UINT16 flags, UINT8 code)
-{
-	freerdp_peer* client = NULL;
-	rdpUpdate* update = NULL;
-	rdpContext* context = NULL;
-	testPeerContext* tcontext = NULL;
-	rdpSettings* settings = NULL;
-
-	WINPR_ASSERT(input);
-
-	context = input->context;
-	WINPR_ASSERT(context);
-
-	client = context->peer;
-	WINPR_ASSERT(client);
-
-	settings = context->settings;
-	WINPR_ASSERT(settings);
-
-	update = context->update;
-	WINPR_ASSERT(update);
-
-	tcontext = (testPeerContext*)context;
-	WINPR_ASSERT(tcontext);
-
-	WLog_DBG(TAG, "Client sent a keyboard event (flags:0x%04" PRIX16 " code:0x%04" PRIX8 ")", flags,
-	         code);
-
-	if (((flags & KBD_FLAGS_RELEASE) == 0) && (code == RDP_SCANCODE_KEY_G)) /* 'g' key */
-	{
-		if (freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth) != 800)
-		{
-			if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth, 800))
-				return FALSE;
-			if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight, 600))
-				return FALSE;
-		}
-		else
-		{
-			if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopWidth,
-			                                 SAMPLE_SERVER_DEFAULT_WIDTH))
-				return FALSE;
-			if (!freerdp_settings_set_uint32(settings, FreeRDP_DesktopHeight,
-			                                 SAMPLE_SERVER_DEFAULT_HEIGHT))
-				return FALSE;
-		}
-
-		if (!rfx_context_reset(tcontext->rfx_context,
-		                       freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
-		                       freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight)))
-			return FALSE;
-
-		WINPR_ASSERT(update->DesktopResize);
-		update->DesktopResize(update->context);
-		tcontext->activated = FALSE;
-	}
-	else if (((flags & KBD_FLAGS_RELEASE) == 0) && code == RDP_SCANCODE_KEY_C) /* 'c' key */
-	{
-		if (tcontext->debug_channel)
-		{
-			ULONG written = 0;
-			WTSVirtualChannelWrite(tcontext->debug_channel, (PCHAR) "test2", 5, &written);
-		}
-	}
-	else if (((flags & KBD_FLAGS_RELEASE) == 0) && code == RDP_SCANCODE_KEY_X) /* 'x' key */
-	{
-		WINPR_ASSERT(client->Close);
-		client->Close(client);
-	}
-	else if (((flags & KBD_FLAGS_RELEASE) == 0) && code == RDP_SCANCODE_KEY_R) /* 'r' key */
-	{
-		tcontext->audin_open = !tcontext->audin_open;
-	}
-#if defined(CHANNEL_AINPUT_SERVER)
-	else if (((flags & KBD_FLAGS_RELEASE) == 0) && code == RDP_SCANCODE_KEY_I) /* 'i' key */
-	{
-		tcontext->ainput_open = !tcontext->ainput_open;
-	}
-#endif
-	else if (((flags & KBD_FLAGS_RELEASE) == 0) && code == RDP_SCANCODE_KEY_S) /* 's' key */
-	{
-	}
-
-	return TRUE;
-}
-
-static BOOL tf_peer_unicode_keyboard_event(rdpInput* input, UINT16 flags, UINT16 code)
-{
-	WINPR_UNUSED(input);
-	WINPR_ASSERT(input);
-
-	WLog_DBG(TAG,
-	         "Client sent a unicode keyboard event (flags:0x%04" PRIX16 " code:0x%04" PRIX16 ")",
-	         flags, code);
-	return TRUE;
-}
-
-static BOOL tf_peer_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
-{
-	WINPR_UNUSED(flags);
-	WINPR_ASSERT(input);
-	WINPR_ASSERT(input->context);
-
-	// WLog_DBG(TAG, "Client sent a mouse event (flags:0x%04"PRIX16" pos:%"PRIu16",%"PRIu16")",
-	// flags, x, y);
-	test_peer_draw_icon(input->context->peer, x + 10, y);
-	return TRUE;
-}
-
-static BOOL tf_peer_extended_mouse_event(rdpInput* input, UINT16 flags, UINT16 x, UINT16 y)
-{
-	WINPR_UNUSED(flags);
-	WINPR_ASSERT(input);
-	WINPR_ASSERT(input->context);
-
-	// WLog_DBG(TAG, "Client sent an extended mouse event (flags:0x%04"PRIX16"
-	// pos:%"PRIu16",%"PRIu16")", flags, x, y);
-	test_peer_draw_icon(input->context->peer, x + 10, y);
-	return TRUE;
-}
-
-static BOOL tf_peer_refresh_rect(rdpContext* context, BYTE count, const RECTANGLE_16* areas)
-{
-	WINPR_UNUSED(context);
-	WINPR_ASSERT(context);
-	WINPR_ASSERT(areas || (count == 0));
-
-	WLog_DBG(TAG, "Client requested to refresh:");
-
-	for (BYTE i = 0; i < count; i++)
-	{
-		WLog_DBG(TAG, "  (%" PRIu16 ", %" PRIu16 ") (%" PRIu16 ", %" PRIu16 ")", areas[i].left,
-		         areas[i].top, areas[i].right, areas[i].bottom);
-	}
-
-	return TRUE;
-}
-
-static BOOL tf_peer_suppress_output(rdpContext* context, BYTE allow, const RECTANGLE_16* area)
-{
-	WINPR_UNUSED(context);
-
-	if (allow > 0)
-	{
-		WINPR_ASSERT(area);
-		WLog_DBG(TAG,
-		         "Client restore output (%" PRIu16 ", %" PRIu16 ") (%" PRIu16 ", %" PRIu16 ").",
-		         area->left, area->top, area->right, area->bottom);
-	}
-	else
-	{
-		WLog_DBG(TAG, "Client minimized and suppress output.");
-	}
-
-	return TRUE;
-}
-
-static int hook_peer_write_pdu(rdpTransport* transport, wStream* s)
-{
-	UINT64 ts = 0;
-	wStream* ls = NULL;
-	UINT64 last_ts = 0;
-	const struct server_info* info = NULL;
-	freerdp_peer* client = NULL;
-	testPeerContext* peerCtx = NULL;
-	size_t offset = 0;
-	UINT32 flags = 0;
-	rdpContext* context = transport_get_context(transport);
-
-	WINPR_ASSERT(context);
-	WINPR_ASSERT(s);
-
-	client = context->peer;
-	WINPR_ASSERT(client);
-
-	peerCtx = (testPeerContext*)client->context;
-	WINPR_ASSERT(peerCtx);
-	WINPR_ASSERT(peerCtx->io.WritePdu);
-
-	info = client->ContextExtra;
-	WINPR_ASSERT(info);
-
-	/* Let the client authenticate.
-	 * After that is done, we stop the normal operation and send
-	 * a previously recorded session PDU by PDU to the client.
-	 *
-	 * This is fragile and the connecting client needs to use the same
-	 * configuration as the one that recorded the session!
-	 */
-	WINPR_ASSERT(info);
-	CONNECTION_STATE state = freerdp_get_state(context);
-	if (state < CONNECTION_STATE_NEGO)
-		return peerCtx->io.WritePdu(transport, s);
-
-	ls = Stream_New(NULL, 4096);
-	if (!ls)
-		goto fail;
-
-	while (stream_dump_get(context, &flags, ls, &offset, &ts) > 0)
-	{
-		int rc = 0;
-		/* Skip messages from client. */
-		if (flags & STREAM_MSG_SRV_TX)
-		{
-			if ((last_ts > 0) && (ts > last_ts))
-			{
-				UINT64 diff = ts - last_ts;
-				Sleep(diff);
-			}
-			last_ts = ts;
-			rc = peerCtx->io.WritePdu(transport, ls);
-			if (rc < 0)
-				goto fail;
-		}
-		Stream_SetPosition(ls, 0);
-	}
-
-fail:
-	Stream_Free(ls, TRUE);
-	return -1;
-}
 
 static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 {
@@ -1073,12 +555,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	WINPR_ASSERT(client->context);
 	settings = client->context->settings;
 	WINPR_ASSERT(settings);
-	if (info->replay_dump)
-	{
-		if (!freerdp_settings_set_bool(settings, FreeRDP_TransportDumpReplay, TRUE) ||
-		    !freerdp_settings_set_string(settings, FreeRDP_TransportDumpFile, info->replay_dump))
-			goto fail;
-	}
+
 
 	rdpPrivateKey* key = freerdp_key_new_from_file(info->key);
 	if (!key)
@@ -1118,23 +595,9 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	client->Activate = tf_peer_activate;
 
 	WINPR_ASSERT(client->context);
-	input = client->context->input;
-	WINPR_ASSERT(input);
 
-	input->SynchronizeEvent = tf_peer_synchronize_event;
-	input->KeyboardEvent = tf_peer_keyboard_event;
-	input->UnicodeKeyboardEvent = tf_peer_unicode_keyboard_event;
-	input->MouseEvent = tf_peer_mouse_event;
-	input->ExtendedMouseEvent = tf_peer_extended_mouse_event;
 
-	update = client->context->update;
-	WINPR_ASSERT(update);
 
-	update->RefreshRect = tf_peer_refresh_rect;
-	update->SuppressOutput = tf_peer_suppress_output;
-	if (!freerdp_settings_set_uint32(settings, FreeRDP_MultifragMaxRequestSize,
-	                                 0xFFFFFF /* FIXME */))
-		goto fail;
 
 	WINPR_ASSERT(client->Initialize);
 	rc = client->Initialize(client);
@@ -1144,18 +607,6 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	context = (testPeerContext*)client->context;
 	WINPR_ASSERT(context);
 
-	if (info->replay_dump)
-	{
-		const rdpTransportIo* cb = freerdp_get_io_callbacks(client->context);
-		rdpTransportIo replay;
-
-		WINPR_ASSERT(cb);
-		replay = *cb;
-		context->io = *cb;
-		replay.WritePdu = hook_peer_write_pdu;
-		freerdp_set_io_callbacks(client->context, &replay);
-	}
-
 	WLog_INFO(TAG, "We've got a client %s", client->local ? "(local)" : client->hostname);
 
 	while (error == CHANNEL_RC_OK)
@@ -1163,7 +614,9 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		count = 0;
 		{
 			WINPR_ASSERT(client->GetEventHandles);
+            //WLog_INFO(TAG, "===> GetEventHandles(client - 1)");
 			DWORD tmp = client->GetEventHandles(client, &handles[count], 32 - count);
+            //WLog_INFO(TAG, "===> GetEventHandles(client - 2)");
 
 			if (tmp == 0)
 			{
@@ -1174,9 +627,9 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 			count += tmp;
 		}
 
-		HANDLE channelHandle = WTSVirtualChannelManagerGetEventHandle(context->vcm);
-		handles[count++] = channelHandle;
-		status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
+		//HANDLE channelHandle = WTSVirtualChannelManagerGetEventHandle(context->vcm);
+		//handles[count++] = channelHandle;
+		//status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
 
 		if (status == WAIT_FAILED)
 		{
@@ -1188,51 +641,12 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		if (client->CheckFileDescriptor(client) != TRUE)
 			break;
 
-		if (WaitForSingleObject(channelHandle, 0) != WAIT_OBJECT_0)
-			continue;
+		//if (WaitForSingleObject(channelHandle, 0) != WAIT_OBJECT_0)
+		//	continue;
 
-		if (WTSVirtualChannelManagerCheckFileDescriptor(context->vcm) != TRUE)
-			break;
+		//if (WTSVirtualChannelManagerCheckFileDescriptor(context->vcm) != TRUE)
+		//	break;
 
-		/* Handle dynamic virtual channel intializations */
-		if (WTSVirtualChannelManagerIsChannelJoined(context->vcm, DRDYNVC_SVC_CHANNEL_NAME))
-		{
-			switch (WTSVirtualChannelManagerGetDrdynvcState(context->vcm))
-			{
-				case DRDYNVC_STATE_NONE:
-					break;
-
-				case DRDYNVC_STATE_INITIALIZED:
-					break;
-
-				case DRDYNVC_STATE_READY:
-
-					/* Here is the correct state to start dynamic virtual channels */
-					if (sf_peer_audin_running(context) != context->audin_open)
-					{
-						if (!sf_peer_audin_running(context))
-							sf_peer_audin_start(context);
-						else
-							sf_peer_audin_stop(context);
-					}
-
-#if defined(CHANNEL_AINPUT_SERVER)
-					if (sf_peer_ainput_running(context) != context->ainput_open)
-					{
-						if (!sf_peer_ainput_running(context))
-							sf_peer_ainput_start(context);
-						else
-							sf_peer_ainput_stop(context);
-					}
-#endif
-
-					break;
-
-				case DRDYNVC_STATE_FAILED:
-				default:
-					break;
-			}
-		}
 	}
 
 	WLog_INFO(TAG, "Client %s disconnected.", client->local ? "(local)" : client->hostname);
@@ -1283,7 +697,9 @@ static void test_server_mainloop(freerdp_listener* instance)
 			break;
 		}
 
+        WLog_INFO(TAG, "===> WaitForMultipleObjects(1)");
 		status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
+        WLog_INFO(TAG, "===> WaitForMultipleObjects(2)");
 
 		if (WAIT_FAILED == status)
 		{
