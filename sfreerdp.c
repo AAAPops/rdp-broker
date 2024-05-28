@@ -44,13 +44,8 @@
 
 #include <freerdp/freerdp.h>
 #include <freerdp/constants.h>
-#include <freerdp/server/rdpsnd.h>
 #include <freerdp/settings.h>
-
-#include "sf_ainput.h"
-#include "sf_audin.h"
-#include "sf_rdpsnd.h"
-#include "sf_encomsp.h"
+#include <freerdp/redirection.h>
 
 #include "sfreerdp.h"
 
@@ -304,6 +299,10 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 	testPeerContext* context = NULL;
 	rdpSettings* settings = NULL;
 
+    const char* Username;
+    const char* Domain;
+    const char* Passwd;
+
 	WINPR_ASSERT(client);
 
 	context = (testPeerContext*)client->context;
@@ -323,14 +322,15 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 	         freerdp_settings_get_uint32(settings, FreeRDP_OsMajorType),
 	         freerdp_settings_get_uint32(settings, FreeRDP_OsMinorType));
 
-	if (freerdp_settings_get_bool(settings, FreeRDP_AutoLogonEnabled))
-	{
-		const char* Username = freerdp_settings_get_string(settings, FreeRDP_Username);
-		const char* Domain = freerdp_settings_get_string(settings, FreeRDP_Domain);
-		WLog_DBG(TAG, " and wants to login automatically as %s\\%s", Domain ? Domain : "",
-		         Username);
-		/* A real server may perform OS login here if NLA is not executed previously. */
-	}
+    if (freerdp_settings_get_bool(settings, FreeRDP_AutoLogonEnabled))
+    {
+        Username = freerdp_settings_get_string(settings, FreeRDP_Username);
+        Domain = freerdp_settings_get_string(settings, FreeRDP_Domain);
+        Passwd = freerdp_settings_get_string(settings, FreeRDP_Password);
+        WLog_INFO(TAG, " and wants to login automatically as %s\\%s and password = '%s'",
+                  Domain ? Domain : "", Username, Passwd);
+        /* A real server may perform OS login here if NLA is not executed previously. */
+    }
 
 	WLog_DBG(TAG, "");
 	WLog_DBG(TAG, "Client requested desktop: %" PRIu32 "x%" PRIu32 "x%" PRIu32 "",
@@ -346,6 +346,26 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 
 	WLog_DBG(TAG, "Using resolution requested by client.");
 
+
+    /*******************************/
+    rdpRedirection *my_redir_info = redirection_new();
+    redirection_set_session_id(my_redir_info, 0x12ab);
+
+    redirection_set_string_option(my_redir_info, LB_USERNAME, Username);
+
+    BYTE pwd_arr[] = { 0x31, 0x0, 0x0, 0x0 };
+    redirection_set_byte_option(my_redir_info, LB_PASSWORD, pwd_arr, sizeof(pwd_arr) );
+    //redirection_set_byte_option(my_redir_info, LB_PASSWORD, (BYTE *)Passwd, strlen(Passwd) );
+
+    const char *balance_info_str="125937856.15629.0000";
+    redirection_set_byte_option(my_redir_info, LB_LOAD_BALANCE_INFO, (BYTE*) balance_info_str, strlen(balance_info_str));
+
+    const char *net_addrs[] = {"192.168.1.120"};
+    redirection_set_array_option(my_redir_info, LB_TARGET_NET_ADDRESSES, net_addrs, 1);
+
+    redirection_set_flags(my_redir_info, LB_USERNAME | LB_PASSWORD | LB_LOAD_BALANCE_INFO | LB_TARGET_NET_ADDRESSES);
+
+    client->SendServerRedirection(client, my_redir_info);
 
 	/* A real server should tag the peer as activated here and start sending updates in main loop. */
 
@@ -395,8 +415,6 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	testPeerContext* context = NULL;
 	struct server_info* info = NULL;
 	rdpSettings* settings = NULL;
-	rdpInput* input = NULL;
-	rdpUpdate* update = NULL;
 	freerdp_peer* client = (freerdp_peer*)arg;
 
 	WINPR_ASSERT(client);
@@ -450,6 +468,9 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	if (!freerdp_settings_set_bool(settings, FreeRDP_RefreshRect, TRUE))
 		goto fail;
 
+    //if (!freerdp_settings_set_bool(settings, FreeRDP_GatewayEnabled, TRUE))
+    //    goto fail;
+
 	client->PostConnect = tf_peer_post_connect;
 	client->Activate = tf_peer_activate;
 
@@ -486,10 +507,6 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 			count += tmp;
 		}
 
-		//HANDLE channelHandle = WTSVirtualChannelManagerGetEventHandle(context->vcm);
-		//handles[count++] = channelHandle;
-		//status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
-
 		if (status == WAIT_FAILED)
 		{
 			WLog_ERR(TAG, "WaitForMultipleObjects failed (errno: %d)", errno);
@@ -499,13 +516,6 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		WINPR_ASSERT(client->CheckFileDescriptor);
 		if (client->CheckFileDescriptor(client) != TRUE)
 			break;
-
-		//if (WaitForSingleObject(channelHandle, 0) != WAIT_OBJECT_0)
-		//	continue;
-
-		//if (WTSVirtualChannelManagerCheckFileDescriptor(context->vcm) != TRUE)
-		//	break;
-
 	}
 
 	WLog_INFO(TAG, "Client %s disconnected.", client->local ? "(local)" : client->hostname);

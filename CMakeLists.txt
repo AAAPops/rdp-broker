@@ -50,14 +50,15 @@ message ("WINPR=${WINPR}")
 set(SRCS
 	sfreerdp.c
 	sfreerdp.h
-	sf_audin.c
-	sf_audin.h
-	sf_rdpsnd.c
-	sf_rdpsnd.h
-	sf_encomsp.c
-	sf_encomsp.h
-	sf_ainput.c
-	sf_ainput.h)
+	#sf_audin.c
+	#sf_audin.h
+	#sf_rdpsnd.c
+	#sf_rdpsnd.h
+	#sf_encomsp.c
+	#sf_encomsp.h
+	#sf_ainput.c
+	#sf_ainput.h
+	)
 
 
 set(SAMPLE_ICONS
@@ -68,7 +69,7 @@ set(SAMPLE_ICONS
 )
 # We need this in runtime path for TestConnect
 #file(COPY test_icon.bmp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY ${SAMPLE_ICONS} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+#file(COPY ${SAMPLE_ICONS} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR})
 
