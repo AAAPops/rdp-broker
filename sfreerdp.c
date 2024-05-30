@@ -147,152 +147,6 @@ static BOOL test_peer_init(freerdp_peer* client)
 	return freerdp_peer_context_new(client);
 }
 
-static wStream* test_peer_stream_init(testPeerContext* context)
-{
-	WINPR_ASSERT(context);
-	WINPR_ASSERT(context->s);
-
-	Stream_Clear(context->s);
-	Stream_SetPosition(context->s, 0);
-	return context->s;
-}
-
-static void test_peer_begin_frame(freerdp_peer* client)
-{
-	rdpUpdate* update = NULL;
-	SURFACE_FRAME_MARKER fm = { 0 };
-	testPeerContext* context = NULL;
-
-	WINPR_ASSERT(client);
-	WINPR_ASSERT(client->context);
-
-	update = client->context->update;
-	WINPR_ASSERT(update);
-
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	fm.frameAction = SURFACECMD_FRAMEACTION_BEGIN;
-	fm.frameId = context->frame_id;
-	WINPR_ASSERT(update->SurfaceFrameMarker);
-	update->SurfaceFrameMarker(update->context, &fm);
-}
-
-static void test_peer_end_frame(freerdp_peer* client)
-{
-	rdpUpdate* update = NULL;
-	SURFACE_FRAME_MARKER fm = { 0 };
-	testPeerContext* context = NULL;
-
-	WINPR_ASSERT(client);
-
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	update = client->context->update;
-	WINPR_ASSERT(update);
-
-	fm.frameAction = SURFACECMD_FRAMEACTION_END;
-	fm.frameId = context->frame_id;
-	WINPR_ASSERT(update->SurfaceFrameMarker);
-	update->SurfaceFrameMarker(update->context, &fm);
-	context->frame_id++;
-}
-
-static BOOL test_peer_draw_background(freerdp_peer* client)
-{
-	size_t size = 0;
-	wStream* s = NULL;
-	RFX_RECT rect;
-	BYTE* rgb_data = NULL;
-	const rdpSettings* settings = NULL;
-	rdpUpdate* update = NULL;
-	SURFACE_BITS_COMMAND cmd = { 0 };
-	testPeerContext* context = NULL;
-	BOOL ret = FALSE;
-	const UINT32 colorFormat = PIXEL_FORMAT_RGB24;
-	const size_t bpp = FreeRDPGetBytesPerPixel(colorFormat);
-
-	WINPR_ASSERT(client);
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	settings = client->context->settings;
-	WINPR_ASSERT(settings);
-
-	update = client->context->update;
-	WINPR_ASSERT(update);
-
-	const BOOL RemoteFxCodec = freerdp_settings_get_bool(settings, FreeRDP_RemoteFxCodec);
-	if (!RemoteFxCodec && !freerdp_settings_get_bool(settings, FreeRDP_NSCodec))
-		return FALSE;
-
-	WINPR_ASSERT(freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth) <= UINT16_MAX);
-	WINPR_ASSERT(freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight) <= UINT16_MAX);
-
-	s = test_peer_stream_init(context);
-	rect.x = 0;
-	rect.y = 0;
-	rect.width = (UINT16)freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth);
-	rect.height = (UINT16)freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight);
-	size = bpp * rect.width * rect.height;
-
-	if (!(rgb_data = malloc(size)))
-	{
-		WLog_ERR(TAG, "Problem allocating memory");
-		return FALSE;
-	}
-
-	memset(rgb_data, 0xA0, size);
-
-	if (RemoteFxCodec)
-	{
-		WLog_DBG(TAG, "Using RemoteFX codec");
-		rfx_context_set_pixel_format(context->rfx_context, colorFormat);
-		if (!rfx_compose_message(context->rfx_context, s, &rect, 1, rgb_data, rect.width,
-		                         rect.height, rect.width * bpp))
-		{
-			goto out;
-		}
-
-		const UINT32 RemoteFxCodecId =
-		    freerdp_settings_get_uint32(settings, FreeRDP_RemoteFxCodecId);
-		WINPR_ASSERT(RemoteFxCodecId <= UINT16_MAX);
-		cmd.bmp.codecID = (UINT16)RemoteFxCodecId;
-		cmd.cmdType = CMDTYPE_STREAM_SURFACE_BITS;
-	}
-	else
-	{
-		WLog_DBG(TAG, "Using NSCodec");
-		nsc_context_set_parameters(context->nsc_context, NSC_COLOR_FORMAT, colorFormat);
-		nsc_compose_message(context->nsc_context, s, rgb_data, rect.width, rect.height,
-		                    rect.width * bpp);
-		const UINT32 NSCodecId = freerdp_settings_get_uint32(settings, FreeRDP_NSCodecId);
-		WINPR_ASSERT(NSCodecId <= UINT16_MAX);
-		cmd.bmp.codecID = (UINT16)NSCodecId;
-		cmd.cmdType = CMDTYPE_SET_SURFACE_BITS;
-	}
-
-	cmd.destLeft = 0;
-	cmd.destTop = 0;
-	cmd.destRight = rect.width;
-	cmd.destBottom = rect.height;
-	cmd.bmp.bpp = 32;
-	cmd.bmp.flags = 0;
-	cmd.bmp.width = rect.width;
-	cmd.bmp.height = rect.height;
-	WINPR_ASSERT(Stream_GetPosition(s) <= UINT32_MAX);
-	cmd.bmp.bitmapDataLength = (UINT32)Stream_GetPosition(s);
-	cmd.bmp.bitmapData = Stream_Buffer(s);
-	test_peer_begin_frame(client);
-	update->SurfaceBits(update->context, &cmd);
-	test_peer_end_frame(client);
-	ret = TRUE;
-out:
-	free(rgb_data);
-	return ret;
-}
-
 
 static BOOL tf_peer_post_connect(freerdp_peer* client)
 {
@@ -348,11 +202,22 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 
 
     /*******************************/
+    // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
+    // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE
+
     rdpRedirection *my_redir_info = redirection_new();
     redirection_set_session_id(my_redir_info, 0x12ab);
 
+    char *target_net_addr = "192.168.1.120";
+    redirection_set_string_option(my_redir_info, LB_TARGET_NET_ADDRESS, target_net_addr);
+
+    char *username = "a1";
     redirection_set_string_option(my_redir_info, LB_USERNAME, Username);
 
+
+
+    redirection_set_flags(my_redir_info, LB_TARGET_NET_ADDRESS | LB_USERNAME);
+/*
     BYTE pwd_arr[] = { 0x31, 0x0, 0x0, 0x0 };
     redirection_set_byte_option(my_redir_info, LB_PASSWORD, pwd_arr, sizeof(pwd_arr) );
     //redirection_set_byte_option(my_redir_info, LB_PASSWORD, (BYTE *)Passwd, strlen(Passwd) );
@@ -364,6 +229,7 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     redirection_set_array_option(my_redir_info, LB_TARGET_NET_ADDRESSES, net_addrs, 1);
 
     redirection_set_flags(my_redir_info, LB_USERNAME | LB_PASSWORD | LB_LOAD_BALANCE_INFO | LB_TARGET_NET_ADDRESSES);
+*/
 
     client->SendServerRedirection(client, my_redir_info);
 
@@ -373,36 +239,6 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 	/* Return FALSE here would stop the execution of the peer main loop. */
 	return TRUE;
 }
-
-static BOOL tf_peer_activate(freerdp_peer* client)
-{
-	testPeerContext* context = NULL;
-	struct server_info* info = NULL;
-	rdpSettings* settings = NULL;
-
-	WINPR_ASSERT(client);
-
-	context = (testPeerContext*)client->context;
-	WINPR_ASSERT(context);
-
-	settings = client->context->settings;
-	WINPR_ASSERT(settings);
-
-	info = client->ContextExtra;
-	WINPR_ASSERT(info);
-
-	context->activated = TRUE;
-	// PACKET_COMPR_TYPE_8K;
-	// PACKET_COMPR_TYPE_64K;
-	// PACKET_COMPR_TYPE_RDP6;
-	if (!freerdp_settings_set_uint32(settings, FreeRDP_CompressionLevel, PACKET_COMPR_TYPE_RDP8))
-		return FALSE;
-
-	test_peer_draw_background(client);
-
-	return TRUE;
-}
-
 
 
 static DWORD WINAPI test_peer_mainloop(LPVOID arg)
@@ -467,12 +303,24 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		goto fail;
 	if (!freerdp_settings_set_bool(settings, FreeRDP_RefreshRect, TRUE))
 		goto fail;
+/*
+    if (!freerdp_settings_set_bool(settings, FreeRDP_GatewayEnabled, FALSE)) {
+        printf("====> FreeRDP_GatewayEnabled\n");
+        return FALSE;
+    }
 
-    //if (!freerdp_settings_set_bool(settings, FreeRDP_GatewayEnabled, TRUE))
-    //    goto fail;
+    freerdp_settings_set_uint32(settings, FreeRDP_TargetNetAddressCount, 1);
+
+    char *net_addrs_1[] = {"192.168.1.120"};
+    if ( !freerdp_target_net_addresses_copy(settings, net_addrs_1, 1) ) {
+        printf("====> freerdp_target_net_addresses_copy()\n");
+        return FALSE;
+    }
+*/
+
 
 	client->PostConnect = tf_peer_post_connect;
-	client->Activate = tf_peer_activate;
+	//client->Activate = tf_peer_activate;
 
 	WINPR_ASSERT(client->context);
 
@@ -715,8 +563,7 @@ int main(int argc, char* argv[])
 
 	if (started)
 	{
-		/* Entering the server main loop. In a real server the listener can be run in its own
-		 * thread. */
+		/* Entering the server main loop. In a real server the listener can be run in its own thread */
 		test_server_mainloop(instance);
 	}
 
