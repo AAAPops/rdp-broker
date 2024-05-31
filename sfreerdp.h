@@ -25,12 +25,7 @@
 #include <freerdp/codec/rfx.h>
 #include <freerdp/codec/nsc.h>
 #include <freerdp/channels/wtsvc.h>
-#if defined(CHANNEL_AINPUT_SERVER)
-#include <freerdp/server/ainput.h>
-#endif
-#if defined(CHANNEL_AUDIN_SERVER)
-#include <freerdp/server/audin.h>
-#endif
+
 #include <freerdp/server/rdpsnd.h>
 #include <freerdp/server/encomsp.h>
 #include <freerdp/transport_io.h>
@@ -44,32 +39,12 @@ struct test_peer_context
 {
 	rdpContext _p;
 
-	RFX_CONTEXT* rfx_context;
-	NSC_CONTEXT* nsc_context;
 	wStream* s;
 	BYTE* bg_data;
-	UINT32 icon_x;
-	UINT32 icon_y;
-	BOOL activated;
-	HANDLE event;
 	HANDLE stopEvent;
-	HANDLE vcm;
 	void* debug_channel;
-	HANDLE debug_channel_thread;
-#if defined(CHANNEL_AUDIN_SERVER)
-	audin_server_context* audin;
-#endif
-	BOOL audin_open;
-#if defined(CHANNEL_AINPUT_SERVER)
-	ainput_server_context* ainput;
-	BOOL ainput_open;
-#endif
-	UINT32 frame_id;
-	RdpsndServerContext* rdpsnd;
-	EncomspServerContext* encomsp;
 
-	rdpTransportIo io;
-	wImage* image;
+	//wImage* image;
 };
 typedef struct test_peer_context testPeerContext;
 

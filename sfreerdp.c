@@ -52,15 +52,10 @@
 #include <freerdp/log.h>
 #define TAG SERVER_TAG("sample")
 
-#define SAMPLE_SERVER_USE_CLIENT_RESOLUTION 1
-#define SAMPLE_SERVER_DEFAULT_WIDTH 1024
-#define SAMPLE_SERVER_DEFAULT_HEIGHT 768
 
 struct server_info
 {
-	BOOL test_dump_rfx_realtime;
-	const char* test_pcap_file;
-	const char* replay_dump;
+	//const char* test_pcap_file;
 	const char* cert;
 	const char* key;
 };
@@ -73,27 +68,11 @@ static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
 
 	if (context)
 	{
-		winpr_image_free(context->image, TRUE);
-		if (context->debug_channel_thread)
-		{
-			WINPR_ASSERT(context->stopEvent);
-			SetEvent(context->stopEvent);
-			WaitForSingleObject(context->debug_channel_thread, INFINITE);
-			CloseHandle(context->debug_channel_thread);
-		}
-
 		Stream_Free(context->s, TRUE);
 		free(context->bg_data);
-		rfx_context_free(context->rfx_context);
-		nsc_context_free(context->nsc_context);
 
 		if (context->debug_channel)
 			WTSVirtualChannelClose(context->debug_channel);
-
-		//rdpsnd_server_context_free(context->rdpsnd);
-		//encomsp_server_context_free(context->encomsp);
-
-		WTSCloseServer((HANDLE)context->vcm);
 	}
 }
 
@@ -105,30 +84,7 @@ static BOOL test_peer_context_new(freerdp_peer* client, rdpContext* ctx)
 	WINPR_ASSERT(context);
 	WINPR_ASSERT(ctx->settings);
 
-	context->image = winpr_image_new();
-	if (!context->image)
-		goto fail;
-	if (!(context->rfx_context = rfx_context_new_ex(
-	          TRUE, freerdp_settings_get_uint32(ctx->settings, FreeRDP_ThreadingFlags))))
-		goto fail;
-
-	if (!rfx_context_reset(context->rfx_context, SAMPLE_SERVER_DEFAULT_WIDTH,
-	                       SAMPLE_SERVER_DEFAULT_HEIGHT))
-		goto fail;
-
-	rfx_context_set_mode(context->rfx_context, RLGR3);
-
-	if (!(context->nsc_context = nsc_context_new()))
-		goto fail;
-
 	if (!(context->s = Stream_New(NULL, 65536)))
-		goto fail;
-
-	context->icon_x = UINT32_MAX;
-	context->icon_y = UINT32_MAX;
-	context->vcm = WTSOpenServerA((LPSTR)client->context);
-
-	if (!context->vcm || context->vcm == INVALID_HANDLE_VALUE)
 		goto fail;
 
 	return TRUE;
@@ -186,27 +142,13 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
         /* A real server may perform OS login here if NLA is not executed previously. */
     }
 
-	WLog_DBG(TAG, "");
-	WLog_DBG(TAG, "Client requested desktop: %" PRIu32 "x%" PRIu32 "x%" PRIu32 "",
-	         freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
-	         freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight),
-	         freerdp_settings_get_uint32(settings, FreeRDP_ColorDepth));
-
-
-	if (!rfx_context_reset(context->rfx_context,
-	                       freerdp_settings_get_uint32(settings, FreeRDP_DesktopWidth),
-	                       freerdp_settings_get_uint32(settings, FreeRDP_DesktopHeight)))
-		return FALSE;
-
 	WLog_DBG(TAG, "Using resolution requested by client.");
 
-
-    /*******************************/
     // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
     // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE
 
     rdpRedirection *my_redir_info = redirection_new();
-    redirection_set_session_id(my_redir_info, 0x12ab);
+    redirection_set_session_id(my_redir_info, 0x03);
 
     char *target_net_addr = "192.168.1.120";
     redirection_set_string_option(my_redir_info, LB_TARGET_NET_ADDRESS, target_net_addr);
@@ -214,27 +156,10 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     char *username = "a1";
     redirection_set_string_option(my_redir_info, LB_USERNAME, Username);
 
-
-
     redirection_set_flags(my_redir_info, LB_TARGET_NET_ADDRESS | LB_USERNAME);
-/*
-    BYTE pwd_arr[] = { 0x31, 0x0, 0x0, 0x0 };
-    redirection_set_byte_option(my_redir_info, LB_PASSWORD, pwd_arr, sizeof(pwd_arr) );
-    //redirection_set_byte_option(my_redir_info, LB_PASSWORD, (BYTE *)Passwd, strlen(Passwd) );
-
-    const char *balance_info_str="125937856.15629.0000";
-    redirection_set_byte_option(my_redir_info, LB_LOAD_BALANCE_INFO, (BYTE*) balance_info_str, strlen(balance_info_str));
-
-    const char *net_addrs[] = {"192.168.1.120"};
-    redirection_set_array_option(my_redir_info, LB_TARGET_NET_ADDRESSES, net_addrs, 1);
-
-    redirection_set_flags(my_redir_info, LB_USERNAME | LB_PASSWORD | LB_LOAD_BALANCE_INFO | LB_TARGET_NET_ADDRESSES);
-*/
 
     client->SendServerRedirection(client, my_redir_info);
-
 	/* A real server should tag the peer as activated here and start sending updates in main loop. */
-
 
 	/* Return FALSE here would stop the execution of the peer main loop. */
 	return TRUE;
@@ -287,12 +212,13 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		goto fail;
 	if (!freerdp_settings_set_bool(settings, FreeRDP_NlaSecurity, FALSE))
 		goto fail;
-	if (!freerdp_settings_set_uint32(settings, FreeRDP_EncryptionLevel,
-	                                 ENCRYPTION_LEVEL_CLIENT_COMPATIBLE))
+    /*  ENCRYPTION_LEVEL_HIGH; */
+    /*  ENCRYPTION_LEVEL_LOW; */
+    /*  ENCRYPTION_LEVEL_FIPS; */
+    if (!freerdp_settings_set_uint32(settings, FreeRDP_EncryptionLevel, ENCRYPTION_LEVEL_CLIENT_COMPATIBLE))
 		goto fail;
-	/*  ENCRYPTION_LEVEL_HIGH; */
-	/*  ENCRYPTION_LEVEL_LOW; */
-	/*  ENCRYPTION_LEVEL_FIPS; */
+
+/*
 	if (!freerdp_settings_set_bool(settings, FreeRDP_RemoteFxCodec, TRUE))
 		goto fail;
 	if (!freerdp_settings_set_bool(settings, FreeRDP_NSCodec, TRUE) ||
@@ -303,21 +229,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		goto fail;
 	if (!freerdp_settings_set_bool(settings, FreeRDP_RefreshRect, TRUE))
 		goto fail;
-/*
-    if (!freerdp_settings_set_bool(settings, FreeRDP_GatewayEnabled, FALSE)) {
-        printf("====> FreeRDP_GatewayEnabled\n");
-        return FALSE;
-    }
-
-    freerdp_settings_set_uint32(settings, FreeRDP_TargetNetAddressCount, 1);
-
-    char *net_addrs_1[] = {"192.168.1.120"};
-    if ( !freerdp_target_net_addresses_copy(settings, net_addrs_1, 1) ) {
-        printf("====> freerdp_target_net_addresses_copy()\n");
-        return FALSE;
-    }
 */
-
 
 	client->PostConnect = tf_peer_post_connect;
 	//client->Activate = tf_peer_activate;
@@ -342,10 +254,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		count = 0;
 		{
 			WINPR_ASSERT(client->GetEventHandles);
-            //WLog_INFO(TAG, "===> GetEventHandles(client - 1)");
 			DWORD tmp = client->GetEventHandles(client, &handles[count], 32 - count);
-            //WLog_INFO(TAG, "===> GetEventHandles(client - 2)");
-
 			if (tmp == 0)
 			{
 				WLog_ERR(TAG, "Failed to get FreeRDP transport event handles");
@@ -461,10 +370,8 @@ static WINPR_NORETURN(void usage(const char* app, const char* invalid))
 	fprintf(fp, "Invalid argument '%s'\n", invalid);
 	fprintf(fp, "Usage: %s <arg>[ <arg> ...]\n", app);
 	fprintf(fp, "Arguments:\n");
-	print_entry(fp, "\t%s<pcap file>\n", options.spcap, sizeof(options.spcap));
 	print_entry(fp, "\t%s<cert file>\n", options.scert, sizeof(options.scert));
 	print_entry(fp, "\t%s<key file>\n", options.skey, sizeof(options.skey));
-	print_entry(fp, "\t%s\n", options.sfast, sizeof(options.sfast));
 	print_entry(fp, "\t%s<port>\n", options.sport, sizeof(options.sport));
 	print_entry(fp, "\t%s\n", options.slocal_only, sizeof(options.slocal_only));
 	exit(-1);
@@ -483,17 +390,13 @@ int main(int argc, char* argv[])
 	struct server_info info = { 0 };
 	const char* app = argv[0];
 
-	info.test_dump_rfx_realtime = TRUE;
-
 	errno = 0;
 
 	for (int i = 1; i < argc; i++)
 	{
 		char* arg = argv[i];
 
-		if (strncmp(arg, options.sfast, sizeof(options.sfast)) == 0)
-			info.test_dump_rfx_realtime = FALSE;
-		else if (strncmp(arg, options.sport, sizeof(options.sport)) == 0)
+        if (strncmp(arg, options.sport, sizeof(options.sport)) == 0)
 		{
 			const char* sport = &arg[sizeof(options.sport)];
 			port = strtol(sport, NULL, 10);
@@ -503,12 +406,6 @@ int main(int argc, char* argv[])
 		}
 		else if (strncmp(arg, options.slocal_only, sizeof(options.slocal_only)) == 0)
 			localOnly = TRUE;
-		else if (strncmp(arg, options.spcap, sizeof(options.spcap)) == 0)
-		{
-			info.test_pcap_file = &arg[sizeof(options.spcap)];
-			if (!winpr_PathFileExists(info.test_pcap_file))
-				usage(app, arg);
-		}
 		else if (strncmp(arg, options.scert, sizeof(options.scert)) == 0)
 		{
 			info.cert = &arg[sizeof(options.scert)];
