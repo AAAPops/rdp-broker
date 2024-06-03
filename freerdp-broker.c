@@ -38,16 +38,16 @@
 #include <freerdp/streamdump.h>
 #include <freerdp/transport_io.h>
 
-#include <freerdp/channels/wtsvc.h>
-#include <freerdp/channels/channels.h>
-#include <freerdp/channels/drdynvc.h>
+//#include <freerdp/channels/wtsvc.h>
+//#include <freerdp/channels/channels.h>
+//#include <freerdp/channels/drdynvc.h>
 
 #include <freerdp/freerdp.h>
 #include <freerdp/constants.h>
 #include <freerdp/settings.h>
 #include <freerdp/redirection.h>
 
-#include "sfreerdp.h"
+#include "freerdp-broker.h"
 
 #include <freerdp/log.h>
 #define TAG SERVER_TAG("sample")
@@ -153,10 +153,15 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     char *target_net_addr = "192.168.1.120";
     redirection_set_string_option(my_redir_info, LB_TARGET_NET_ADDRESS, target_net_addr);
 
-    char *username = "a1";
+    //char *username = "a1";
     redirection_set_string_option(my_redir_info, LB_USERNAME, Username);
 
     redirection_set_flags(my_redir_info, LB_TARGET_NET_ADDRESS | LB_USERNAME);
+
+    if ( strcmp(Username, "a1") == 0 ) {
+        WLog_INFO(TAG, "===> Wait for 15 sec. for user ''", Username);
+        sleep(15);
+    }
 
     client->SendServerRedirection(client, my_redir_info);
 	/* A real server should tag the peer as activated here and start sending updates in main loop. */
@@ -218,27 +223,11 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
     if (!freerdp_settings_set_uint32(settings, FreeRDP_EncryptionLevel, ENCRYPTION_LEVEL_CLIENT_COMPATIBLE))
 		goto fail;
 
-/*
-	if (!freerdp_settings_set_bool(settings, FreeRDP_RemoteFxCodec, TRUE))
-		goto fail;
-	if (!freerdp_settings_set_bool(settings, FreeRDP_NSCodec, TRUE) ||
-	    !freerdp_settings_set_uint32(settings, FreeRDP_ColorDepth, 32))
-		goto fail;
-
-	if (!freerdp_settings_set_bool(settings, FreeRDP_SuppressOutput, TRUE))
-		goto fail;
-	if (!freerdp_settings_set_bool(settings, FreeRDP_RefreshRect, TRUE))
-		goto fail;
-*/
 
 	client->PostConnect = tf_peer_post_connect;
 	//client->Activate = tf_peer_activate;
 
 	WINPR_ASSERT(client->context);
-
-
-
-
 	WINPR_ASSERT(client->Initialize);
 	rc = client->Initialize(client);
 	if (!rc)
@@ -249,12 +238,13 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 
 	WLog_INFO(TAG, "We've got a client %s", client->local ? "(local)" : client->hostname);
 
-	while (error == CHANNEL_RC_OK)
+	while (1)
 	{
 		count = 0;
 		{
 			WINPR_ASSERT(client->GetEventHandles);
 			DWORD tmp = client->GetEventHandles(client, &handles[count], 32 - count);
+            WLog_INFO(TAG, "===> tmp = %d,  count = %d", tmp, count);
 			if (tmp == 0)
 			{
 				WLog_ERR(TAG, "Failed to get FreeRDP transport event handles");
@@ -263,6 +253,8 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 
 			count += tmp;
 		}
+
+        status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
 
 		if (status == WAIT_FAILED)
 		{
@@ -300,6 +292,7 @@ static BOOL test_peer_accepted(freerdp_listener* instance, freerdp_peer* client)
 
 	if (!(hThread = CreateThread(NULL, 0, test_peer_mainloop, (void*)client, 0, NULL)))
 		return FALSE;
+    WLog_INFO(TAG, "===> CreateThread(test_peer_mainloop) = TRUE");
 
 	CloseHandle(hThread);
 	return TRUE;
@@ -324,6 +317,7 @@ static void test_server_mainloop(freerdp_listener* instance)
 		}
 
         WLog_INFO(TAG, "===> WaitForMultipleObjects(1)");
+        WLog_INFO(TAG, "===> count = %d", count);
 		status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
         WLog_INFO(TAG, "===> WaitForMultipleObjects(2)");
 
@@ -422,7 +416,7 @@ int main(int argc, char* argv[])
 			usage(app, arg);
 	}
 
-	WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
+	//WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
 	instance = freerdp_listener_new();
 
@@ -441,7 +435,7 @@ int main(int argc, char* argv[])
 		goto fail;
 
 	/* Open the server socket and start listening. */
-	sprintf_s(name, sizeof(name), "tfreerdp-server.%ld", port);
+	sprintf_s(name, sizeof(name), "freerdp-broker.%ld", port);
 	file = GetKnownSubPath(KNOWN_PATH_TEMP, name);
 
 	if (!file)

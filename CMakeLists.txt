@@ -17,12 +17,12 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-project(sfreerdp-server)
+project(freerdp-broker)
 
 set(CMAKE_C_STANDARD 99)
 
-set(MODULE_NAME "sfreerdp-server")
-set(MODULE_PREFIX "FREERDP_SERVER_SAMPLE")
+#set(MODULE_NAME "sfreerdp-server")
+#set(MODULE_PREFIX "FREERDP_SERVER_SAMPLE")
 
 include_directories(/opt/freerdp3/include/winpr3)
 include_directories(/opt/freerdp3/include/freerdp3)
@@ -48,33 +48,15 @@ message ("WINPR=${WINPR}")
 
 
 set(SRCS
-	sfreerdp.c
-	sfreerdp.h
-	#sf_audin.c
-	#sf_audin.h
-	#sf_rdpsnd.c
-	#sf_rdpsnd.h
-	#sf_encomsp.c
-	#sf_encomsp.h
-	#sf_ainput.c
-	#sf_ainput.h
+	freerdp-broker.c
+	freerdp-broker.h
 	)
 
 
-set(SAMPLE_ICONS
-    test_icon.bmp
-    test_icon.png
-    test_icon.jpg
-    test_icon.webp
-)
-# We need this in runtime path for TestConnect
-#file(COPY test_icon.bmp DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-#file(COPY ${SAMPLE_ICONS} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
 list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR})
 
-add_executable(sfreerdp-server ${SRCS})
-target_link_libraries(sfreerdp-server ${LIBS})
+add_executable(freerdp-broker ${SRCS})
+target_link_libraries(freerdp-broker ${LIBS})
 #install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT server)
 
 

@@ -22,18 +22,18 @@
 
 #include <freerdp/freerdp.h>
 #include <freerdp/listener.h>
-#include <freerdp/codec/rfx.h>
-#include <freerdp/codec/nsc.h>
-#include <freerdp/channels/wtsvc.h>
+//#include <freerdp/codec/rfx.h>
+//#include <freerdp/codec/nsc.h>
+//#include <freerdp/channels/wtsvc.h>
 
-#include <freerdp/server/rdpsnd.h>
-#include <freerdp/server/encomsp.h>
-#include <freerdp/transport_io.h>
+//#include <freerdp/server/rdpsnd.h>
+//#include <freerdp/server/encomsp.h>
+//#include <freerdp/transport_io.h>
 
-#include <winpr/crt.h>
-#include <winpr/synch.h>
-#include <winpr/thread.h>
-#include <winpr/image.h>
+//#include <winpr/crt.h>
+//#include <winpr/synch.h>
+//#include <winpr/thread.h>
+//#include <winpr/image.h>
 
 struct test_peer_context
 {
@@ -43,8 +43,6 @@ struct test_peer_context
 	BYTE* bg_data;
 	HANDLE stopEvent;
 	void* debug_channel;
-
-	//wImage* image;
 };
 typedef struct test_peer_context testPeerContext;
 
