@@ -144,13 +144,23 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 
 	WLog_DBG(TAG, "Using resolution requested by client.");
 
+    const char* clientAddress = freerdp_settings_get_string(settings, FreeRDP_ClientAddress);
+    const char* preconnectionBlob = freerdp_settings_get_string(settings, FreeRDP_PreconnectionBlob);
+    const char* remoteAppName = freerdp_settings_get_string(settings, FreeRDP_RemoteApplicationProgram);
+    const char* remoteCmdLine = freerdp_settings_get_string(settings, FreeRDP_RemoteApplicationCmdLine);
+    WLog_INFO(TAG, "Client address = '%s', pcb = '%s'", clientAddress, preconnectionBlob);
+    WLog_INFO(TAG, "Remote App = '%s', cmd = '%s'", remoteAppName, remoteCmdLine);
+
+    /* !!! Insert here call to client that asks ALL agents about user with "Username"  !!! */
+    char *target_net_addr = "192.168.1.120";
+
     // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
     // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE
 
     rdpRedirection *my_redir_info = redirection_new();
     redirection_set_session_id(my_redir_info, 0x03);
 
-    char *target_net_addr = "192.168.1.120";
+
     redirection_set_string_option(my_redir_info, LB_TARGET_NET_ADDRESS, target_net_addr);
 
     //char *username = "a1";
@@ -158,10 +168,10 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 
     redirection_set_flags(my_redir_info, LB_TARGET_NET_ADDRESS | LB_USERNAME);
 
-    if ( strcmp(Username, "a1") == 0 ) {
-        WLog_INFO(TAG, "===> Wait for 15 sec. for user ''", Username);
-        sleep(15);
-    }
+    //if ( strcmp(Username, "a1") == 0 ) {
+    //    WLog_INFO(TAG, "===> Wait for 15 sec. for user ''", Username);
+    //    sleep(15);
+    //}
 
     client->SendServerRedirection(client, my_redir_info);
 	/* A real server should tag the peer as activated here and start sending updates in main loop. */
@@ -244,7 +254,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 		{
 			WINPR_ASSERT(client->GetEventHandles);
 			DWORD tmp = client->GetEventHandles(client, &handles[count], 32 - count);
-            WLog_INFO(TAG, "===> tmp = %d,  count = %d", tmp, count);
+            //WLog_INFO(TAG, "===> tmp = %d,  count = %d", tmp, count);
 			if (tmp == 0)
 			{
 				WLog_ERR(TAG, "Failed to get FreeRDP transport event handles");
@@ -316,10 +326,10 @@ static void test_server_mainloop(freerdp_listener* instance)
 			break;
 		}
 
-        WLog_INFO(TAG, "===> WaitForMultipleObjects(1)");
-        WLog_INFO(TAG, "===> count = %d", count);
+        //WLog_INFO(TAG, "===> WaitForMultipleObjects(1)");
+        //WLog_INFO(TAG, "===> count = %d", count);
 		status = WaitForMultipleObjects(count, handles, FALSE, INFINITE);
-        WLog_INFO(TAG, "===> WaitForMultipleObjects(2)");
+        //WLog_INFO(TAG, "===> WaitForMultipleObjects(2)");
 
 		if (WAIT_FAILED == status)
 		{
