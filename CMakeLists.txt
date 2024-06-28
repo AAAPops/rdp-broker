@@ -27,6 +27,14 @@ set(CMAKE_C_STANDARD 99)
 include_directories(/opt/freerdp3/include/winpr3)
 include_directories(/opt/freerdp3/include/freerdp3)
 
+set(NNG_DIR /opt/nng/)
+include_directories(${NNG_DIR}/include)
+
+include_directories(nng_client)
+
+set(PARALLEL 128 CACHE STRING "Parallelism (min 4, max 1000)")
+#set(PARALLEL 1 CACHE STRING "Parallelism (min 4, max 1000)")
+
 find_library(FREERDP-SERVER
 		NAMES freerdp-server3
 		PATHS "/opt/freerdp3/lib"
@@ -45,18 +53,29 @@ find_library(WINPR
 		)
 message ("WINPR=${WINPR}")
 
+find_package(Threads)
 
+
+set(COMMON_SRC
+		nng_client/common.h
+		nng_client/utils.c
+		nng_client/utils.h
+		nng_client/nng-extras.c
+		nng_client/nng-extras.h)
 
 set(SRCS
 	freerdp-broker.c
 	freerdp-broker.h
+	nng_client/nng-client.c
+	nng_client/nng-client.h
+	${COMMON_SRC}
 	)
 
 
 list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR})
 
 add_executable(freerdp-broker ${SRCS})
-target_link_libraries(freerdp-broker ${LIBS})
+target_link_libraries(freerdp-broker ${LIBS} ${NNG_DIR}/lib/libnng.a  Threads::Threads)
+target_compile_definitions(freerdp-broker PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 #install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT server)
-
 

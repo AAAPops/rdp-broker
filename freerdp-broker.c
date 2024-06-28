@@ -48,6 +48,7 @@
 #include <freerdp/redirection.h>
 
 #include "freerdp-broker.h"
+#include "nng_client/nng-client.h"
 
 #include <freerdp/log.h>
 #define TAG SERVER_TAG("sample")
@@ -152,7 +153,10 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     WLog_INFO(TAG, "Remote App = '%s', cmd = '%s'", remoteAppName, remoteCmdLine);
 
     /* !!! Insert here call to client that asks ALL agents about user with "Username"  !!! */
-    char *target_net_addr = "192.168.1.120";
+    char *srv_list[] = { "tcp://192.168.1.120:5555", "tcp://192.168.1.121:5555" };
+
+    //char *target_net_addr = "192.168.1.120";
+    char *target_net_addr = nng_client(Username, srv_list, 2);
 
     // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
     // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE
