@@ -140,7 +140,7 @@ nng_client(const char *username, char **URL_list, int URL_count)
 
     outputSrvIp = redirect_to_ip(tmpURL);
     if ( outputSrvIp != NULL ) {
-        printf("\nRedirect User to Srv: %s <=== %s\n", outputSrvIp, tmpURL);
+        printf("\nRedirect user to existed session on Srv: %s <=== %s\n", outputSrvIp, tmpURL);
         return outputSrvIp;
     }
 

@@ -6,8 +6,8 @@
 #define CLIENT "client"
 #define AGENT  "agent"
 
-// Maximum user name lenght in Linux = 32 (+1 for '\0')
-#define USERNAME_MAX_LEN    33
+// Maximum user name length in Linux = 32
+#define USERNAME_MAX_LEN    32
 
 
 #define CMD_CHECK_USER      1

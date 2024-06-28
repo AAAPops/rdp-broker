@@ -20,8 +20,7 @@
 #include "nng-client.h"
 
 char *srv_list[] = { "tcp://127.0.0.1:5551",
-                     "tcp://127.0.0.1:5552",
-                     NULL };
+                     "tcp://127.0.0.1:5552"};
 
 int
 main(int argc, char **argv)
