@@ -47,8 +47,8 @@
 #include <freerdp/settings.h>
 #include <freerdp/redirection.h>
 
-#include "freerdp-broker.h"
-#include "nng_client/nng-client.h"
+#include "rdp-broker.h"
+#include "nng_src//nng-client.h"
 
 #include <freerdp/log.h>
 #define TAG SERVER_TAG("sample")
@@ -56,7 +56,6 @@
 
 struct server_info
 {
-	//const char* test_pcap_file;
 	const char* cert;
 	const char* key;
 };

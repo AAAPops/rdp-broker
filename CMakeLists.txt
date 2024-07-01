@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-project(freerdp-broker)
+project(rdp-broker)
 
 set(CMAKE_C_STANDARD 99)
 
@@ -56,26 +56,37 @@ message ("WINPR=${WINPR}")
 find_package(Threads)
 
 
-set(COMMON_SRC
-		nng_client/common.h
-		nng_client/utils.c
-		nng_client/utils.h
-		nng_client/nng-extras.c
-		nng_client/nng-extras.h)
+set(COMMON_NNG_SRC
+		nng_src/common.h
+		nng_src/utils.c
+		nng_src/utils.h
+		nng_src/nng-extras.c
+		nng_src/nng-extras.h)
 
-set(SRCS
-	freerdp-broker.c
-	freerdp-broker.h
-	nng_client/nng-client.c
-	nng_client/nng-client.h
-	${COMMON_SRC}
+set(BASH_SCRIPT  agent.sh)
+
+add_executable(_rdp-client  nng_src/client.c  nng_src/nng-client.c nng_src/nng-client.h  ${COMMON_NNG_SRC} )
+target_link_libraries(_rdp-client ${NNG_DIR}/lib/libnng.a  Threads::Threads)
+#target_compile_definitions(client PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
+
+
+add_executable(rdp-agent  nng_src/agent.c  ${COMMON_NNG_SRC} )
+target_link_libraries(rdp-agent ${NNG_DIR}/lib/libnng.a  Threads::Threads)
+target_compile_definitions(rdp-agent PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
+
+set(BROKER_SRCS
+		rdp-broker.c
+		rdp-broker.h
+		nng_src/nng-client.c
+		nng_src/nng-client.h
+		${COMMON_NNG_SRC}
 	)
 
 
 list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR})
 
-add_executable(freerdp-broker ${SRCS})
-target_link_libraries(freerdp-broker ${LIBS} ${NNG_DIR}/lib/libnng.a  Threads::Threads)
-target_compile_definitions(freerdp-broker PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
+add_executable(rdp-broker ${BROKER_SRCS})
+target_link_libraries(rdp-broker ${LIBS} ${NNG_DIR}/lib/libnng.a  Threads::Threads)
+#target_compile_definitions(rdp-broker PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 #install(TARGETS ${MODULE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT server)
 
