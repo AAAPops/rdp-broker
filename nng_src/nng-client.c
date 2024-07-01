@@ -25,7 +25,7 @@ typedef struct _info {
 
 /*  The client runs just once, and then returns. */
 char *
-nng_client(const char *username, char **URL_list, int URL_count)
+nng_client(const char *username, const char **URL_list, int URL_count)
 {
     nng_socket sock;
     int        rv;

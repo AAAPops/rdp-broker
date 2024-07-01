@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 
 #include <nng/nng.h>
 #include <nng/protocol/reqrep0/rep.h>
@@ -30,6 +31,10 @@
 #include "utils.h"
 #include "nng-extras.h"
 
+#include <ini.h>
+
+#define TAG "agent"
+
 // Parallel is the maximum number of outstanding requests we can handle.
 // This is *NOT* the number of threads in use, but instead represents
 // outstanding work items.  Select a small number to reduce memory size.
@@ -38,11 +43,18 @@
 #define PARALLEL 32
 #endif
 
-//#define BASH_SCRIPT  "/A-build/nng-demo/rdp-broker/agent.sh"
-static char *bash_script_name;
+struct server_config
+{
+    const char     *start_url;
+    nng_log_level  log_level;
+
+    const char     *bash_file;
+};
+
+const char *bash_script_name;
 
 
-int exec_script(char *script_name, char *args, char *output, int out_len)
+int exec_script(const char *script_name, char *args, char *output, int out_len)
 {
     char *exec_str = malloc(strlen(script_name) + strlen(args) + 5 );
     sprintf(exec_str, "%s %s", script_name, args);
@@ -239,6 +251,14 @@ alloc_work(nng_socket sock)
 	return (w);
 }
 
+void usage(const char* app, const char* invalid) {
+    FILE *fp = stdout;
+
+    fprintf(fp, "Usage: %s <-h|--help> <-f conf_file.ini> \n", app);
+
+    exit (EXIT_FAILURE);
+}
+
 // The server runs forever.
 int
 server(const char *url)
@@ -273,6 +293,42 @@ server(const char *url)
 	}
 }
 
+static int config_cb(void* user, const char* section, const char* name,
+                     const char* value)
+{
+    errno = 0;
+    struct server_config* pconfig = (struct server_config *)user;
+
+#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+#define MATCH_1(s, n) strcmp(section, s) == 0 && strstr(name, n) != NULL
+
+    if ( MATCH("server", "interface") ) {
+            pconfig->start_url = strdup(value);
+
+    } else if ( MATCH("logs", "level") ) {
+        pconfig->log_level = NNG_LOG_DEBUG;
+
+        if ( strcmp(value, "LOG_NONE") == 0 )
+            pconfig->log_level = NNG_LOG_NONE;
+        if ( strcmp(value, "LOG_ERR") == 0 )
+            pconfig->log_level = NNG_LOG_ERR;
+        if ( strcmp(value, "LOG_WARN") == 0 )
+            pconfig->log_level = NNG_LOG_WARN;
+        if ( strcmp(value, "LOG_NOTICE") == 0 )
+            pconfig->log_level = NNG_LOG_NOTICE;
+        if ( strcmp(value, "LOG_INFO") == 0 )
+            pconfig->log_level = NNG_LOG_INFO;
+        if ( strcmp(value, "LOG_DEBUG") == 0 )
+            pconfig->log_level = NNG_LOG_DEBUG;
+
+    } else if (MATCH("bash_script", "file")) {
+        pconfig->bash_file = strdup(value);
+    } else {
+        return 0;  /* unknown section/name, error */
+    }
+    return 1;
+}
+
 
 
 int
@@ -280,15 +336,45 @@ main(int argc, char **argv)
 {
 	int rc;
 
-	if (argc != 3) {
-		fprintf(stderr, "Usage: %s <url> \n", argv[0]);
-		exit(EXIT_FAILURE);
-	}
+    static char* conf_file = NULL;
+    struct server_config srv_conf = {0};
+    const char* app = argv[0];
 
-    bash_script_name = argv[1];
-    char *listen_url = argv[2];
 
-    rc = server(listen_url);
+    for (int i = 1; i < argc; i++)
+    {
+        char* arg = argv[i];
+
+        if ( strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
+        {
+            usage(app, arg);
+
+        } else if ( strcmp(arg, "-f") == 0) {
+            i++;
+            conf_file = argv[i];
+            //if (!PathFileExists(conf_file))
+            //    usage(app, arg);
+        }
+        else
+            usage(app, arg);
+    }
+
+    nng_log_set_logger(nng_stderr_logger);
+    nng_log_set_level(NNG_LOG_NOTICE);
+
+    if (ini_parse(conf_file, config_cb, &srv_conf) < 0)
+        usage(app, NULL);
+
+    nng_log_notice(TAG, "Config loaded from '%s'", conf_file);
+    nng_log_notice(TAG, "   interface = %s", srv_conf.start_url);
+    nng_log_notice(TAG, "   log level = %d", srv_conf.log_level);
+    nng_log_notice(TAG, "   bash file = %s", srv_conf.bash_file);
+
+    nng_log_set_level(srv_conf.log_level);
+
+    bash_script_name = srv_conf.bash_file;
+
+    rc = server(srv_conf.start_url);
 
 	exit(rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

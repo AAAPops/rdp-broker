@@ -53,6 +53,9 @@ find_library(WINPR
 		)
 message ("WINPR=${WINPR}")
 
+find_library(INIH  NAMES inih)
+message ("INIH=${INIH}")
+
 find_package(Threads)
 
 
@@ -71,7 +74,7 @@ target_link_libraries(_rdp-client ${NNG_DIR}/lib/libnng.a  Threads::Threads)
 
 
 add_executable(rdp-agent  nng_src/agent.c  ${COMMON_NNG_SRC} )
-target_link_libraries(rdp-agent ${NNG_DIR}/lib/libnng.a  Threads::Threads)
+target_link_libraries(rdp-agent ${NNG_DIR}/lib/libnng.a  ${INIH}  Threads::Threads)
 target_compile_definitions(rdp-agent PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 
 set(BROKER_SRCS
@@ -83,7 +86,7 @@ set(BROKER_SRCS
 	)
 
 
-list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR})
+list(APPEND LIBS ${FREERDP-SERVER} ${FREERDP} ${WINPR} ${INIH})
 
 add_executable(rdp-broker ${BROKER_SRCS})
 target_link_libraries(rdp-broker ${LIBS} ${NNG_DIR}/lib/libnng.a  Threads::Threads)

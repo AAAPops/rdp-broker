@@ -51,13 +51,21 @@
 #include "nng_src//nng-client.h"
 
 #include <freerdp/log.h>
-#define TAG SERVER_TAG("sample")
+#define TAG SERVER_TAG("broker")
+
+#include <ini.h>
 
 
-struct server_info
+struct server_config
 {
-	const char* cert;
-	const char* key;
+	const char  *cert;
+	const char  *key;
+
+    const char  *interface;
+    UINT16      port;
+
+    const char  *url_list[16];
+    int         url_count;
 };
 
 static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
@@ -114,6 +122,7 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     const char* Passwd;
 
 	WINPR_ASSERT(client);
+    struct server_config* srv_conf = client->ContextExtra;
 
 	context = (testPeerContext*)client->context;
 	WINPR_ASSERT(context);
@@ -152,10 +161,14 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     WLog_INFO(TAG, "Remote App = '%s', cmd = '%s'", remoteAppName, remoteCmdLine);
 
     /* !!! Insert here call to client that asks ALL agents about user with "Username"  !!! */
-    char *srv_list[] = { "tcp://192.168.1.120:5555", "tcp://192.168.1.121:5555" };
+    //char *srv_list[] = { "tcp://192.168.1.120:5555", "tcp://192.168.1.121:5555" };
+    WLog_INFO(TAG, "Agent's list:");
+    for (int i = 0; i < srv_conf->url_count; ++i) {
+        WLog_INFO(TAG, "   url[%d] = %s", i, srv_conf->url_list[i]);
+    }
 
     //char *target_net_addr = "192.168.1.120";
-    char *target_net_addr = nng_client(Username, srv_list, 2);
+    char *target_net_addr = nng_client(Username, srv_conf->url_list, srv_conf->url_count);
 
     // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
     // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE
@@ -192,7 +205,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	DWORD count = 0;
 	DWORD status = 0;
 	testPeerContext* context = NULL;
-	struct server_info* info = NULL;
+	struct server_config* info = NULL;
 	rdpSettings* settings = NULL;
 	freerdp_peer* client = (freerdp_peer*)arg;
 
@@ -293,7 +306,7 @@ fail:
 static BOOL test_peer_accepted(freerdp_listener* instance, freerdp_peer* client)
 {
 	HANDLE hThread = NULL;
-	struct server_info* info = NULL;
+	struct server_config* info = NULL;
 
 	WINPR_UNUSED(instance);
 
@@ -352,15 +365,7 @@ static void test_server_mainloop(freerdp_listener* instance)
 	instance->Close(instance);
 }
 
-static const struct
-{
-	const char spcap[7];
-	const char sfast[7];
-	const char sport[7];
-	const char slocal_only[13];
-	const char scert[7];
-	const char skey[6];
-} options = { "--pcap=", "--fast", "--port=", "--local-only", "--cert=", "--key=" };
+
 
 WINPR_ATTR_FORMAT_ARG(2, 0)
 static void print_entry(FILE* fp, WINPR_FORMAT_ARG const char* fmt, const char* what, size_t size)
@@ -374,14 +379,45 @@ static WINPR_NORETURN(void usage(const char* app, const char* invalid))
 {
 	FILE* fp = stdout;
 
-	fprintf(fp, "Invalid argument '%s'\n", invalid);
-	fprintf(fp, "Usage: %s <arg>[ <arg> ...]\n", app);
-	fprintf(fp, "Arguments:\n");
-	print_entry(fp, "\t%s<cert file>\n", options.scert, sizeof(options.scert));
-	print_entry(fp, "\t%s<key file>\n", options.skey, sizeof(options.skey));
-	print_entry(fp, "\t%s<port>\n", options.sport, sizeof(options.sport));
-	print_entry(fp, "\t%s\n", options.slocal_only, sizeof(options.slocal_only));
+	fprintf(fp, "Usage: %s <-h|--help> <-f conf_file.ini> \n", app);
+
 	exit(-1);
+}
+
+static int config_cb(void* user, const char* section, const char* name,
+                   const char* value)
+{
+    errno = 0;
+    struct server_config* pconfig = (struct server_config *)user;
+
+#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+#define MATCH_1(s, n) strcmp(section, s) == 0 && strstr(name, n) != NULL
+
+    if ( MATCH("server", "interface") ) {
+        if ( strcmp(value, "*") == 0 )
+            pconfig->interface = NULL;
+        else
+            pconfig->interface = strdup(value);
+
+    } else if ( MATCH("server", "port") ) {
+        pconfig->port = strtol(value, NULL, 10);
+
+        if ((pconfig->port < 1) || (pconfig->port > UINT16_MAX) || (errno != 0))
+            return 0;
+
+    } else if ( MATCH("tls", "cert") ) {
+        pconfig->cert = strdup(value);
+
+    } else if ( MATCH("tls", "key") ) {
+        pconfig->key = strdup(value);
+
+    } else if (MATCH_1("agents", "url-")) {
+        pconfig->url_list[pconfig->url_count] = strdup(value);
+        pconfig->url_count++;
+    } else {
+        return 0;  /* unknown section/name, error */
+    }
+    return 1;
 }
 
 int main(int argc, char* argv[])
@@ -390,44 +426,41 @@ int main(int argc, char* argv[])
 	BOOL started = FALSE;
 	WSADATA wsaData = { 0 };
 	freerdp_listener* instance = NULL;
-	char* file = NULL;
-	char name[MAX_PATH] = { 0 };
-	long port = 3389;
-	BOOL localOnly = FALSE;
-	struct server_info info = { 0 };
+
+	static char* conf_file = NULL;
+	struct server_config srv_conf = {0};
 	const char* app = argv[0];
 
-	errno = 0;
 
 	for (int i = 1; i < argc; i++)
 	{
 		char* arg = argv[i];
 
-        if (strncmp(arg, options.sport, sizeof(options.sport)) == 0)
+        if ( strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
 		{
-			const char* sport = &arg[sizeof(options.sport)];
-			port = strtol(sport, NULL, 10);
+            usage(app, arg);
 
-			if ((port < 1) || (port > UINT16_MAX) || (errno != 0))
-				usage(app, arg);
-		}
-		else if (strncmp(arg, options.slocal_only, sizeof(options.slocal_only)) == 0)
-			localOnly = TRUE;
-		else if (strncmp(arg, options.scert, sizeof(options.scert)) == 0)
-		{
-			info.cert = &arg[sizeof(options.scert)];
-			if (!winpr_PathFileExists(info.cert))
-				usage(app, arg);
-		}
-		else if (strncmp(arg, options.skey, sizeof(options.skey)) == 0)
-		{
-			info.key = &arg[sizeof(options.skey)];
-			if (!winpr_PathFileExists(info.key))
+        } else if ( strcmp(arg, "-f") == 0) {
+            i++;
+            conf_file = argv[i];
+			if (!winpr_PathFileExists(conf_file))
 				usage(app, arg);
 		}
 		else
 			usage(app, arg);
 	}
+
+    if (ini_parse(conf_file, config_cb, &srv_conf) < 0)
+        usage(app, NULL);
+
+    WLog_INFO(TAG, "Config loaded from '%s'", conf_file);
+    WLog_INFO(TAG, "   interface = %s", ( srv_conf.interface ) ? srv_conf.interface : "\"*\"" );
+    WLog_INFO(TAG, "   port = %d", srv_conf.port);
+    WLog_INFO(TAG, "   cert = %s", srv_conf.cert);
+    WLog_INFO(TAG, "   key  = %s", srv_conf.key);
+    for (int i = 0; i < srv_conf.url_count; ++i) {
+        WLog_INFO(TAG, "   url[%d] = %s", i, srv_conf.url_list[i]);
+    }
 
 	//WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
@@ -436,34 +469,15 @@ int main(int argc, char* argv[])
 	if (!instance)
 		return -1;
 
-	if (!info.cert)
-		info.cert = "server.crt";
-	if (!info.key)
-		info.key = "server.key";
-
-	instance->info = (void*)&info;
+	instance->info = (void*)&srv_conf;
 	instance->PeerAccepted = test_peer_accepted;
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
 		goto fail;
 
 	/* Open the server socket and start listening. */
-	sprintf_s(name, sizeof(name), "freerdp-broker.%ld", port);
-	file = GetKnownSubPath(KNOWN_PATH_TEMP, name);
-
-	if (!file)
-		goto fail;
-
-	if (localOnly)
-	{
-		WINPR_ASSERT(instance->OpenLocal);
-		started = instance->OpenLocal(instance, file);
-	}
-	else
-	{
-		WINPR_ASSERT(instance->Open);
-		started = instance->Open(instance, NULL, (UINT16)port);
-	}
+	WINPR_ASSERT(instance->Open);
+	started = instance->Open(instance, srv_conf.interface, srv_conf.port);
 
 	if (started)
 	{
@@ -473,7 +487,6 @@ int main(int argc, char* argv[])
 
 	rc = 0;
 fail:
-	free(file);
 	freerdp_listener_free(instance);
 	WSACleanup();
 	return rc;
