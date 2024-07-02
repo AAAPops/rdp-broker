@@ -125,13 +125,13 @@ nng_client(const char *username, const char **URL_list, int URL_count)
     }
 
     // Make decision if user PRESENT on any host
-    uint64_t    tmpJobTime = UINT64_MAX;
+    uint64_t    tmpJobTime = 0;
     uint32_t    tmpLA = UINT32_MAX;
     char        tmpURL[128] = {0};
     char        *outputSrvIp = NULL;
 
-    for (int i = 0; i < URL_count; ++i) {
-        if ( (info[i].usrPresent == 1) && (info[i].usrJobTime < tmpJobTime))
+    for (int i = 0; i < URL_count; i++) {
+        if ( (info[i].usrPresent == 1) && (info[i].usrJobTime > tmpJobTime))
         {
             tmpJobTime = info[i].usrJobTime;
             strcpy(tmpURL, info[i].srvURL);
@@ -146,7 +146,7 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
 
     // Make decision if user NOT present on any host
-    for (int i = 0; i < URL_count; ++i) {
+    for (int i = 0; i < URL_count; i++) {
         if ( (info[i].srvAlive == 1) && (info[i].srvLA < tmpLA) )
         {
             tmpLA = info[i].srvLA;
@@ -161,5 +161,5 @@ nng_client(const char *username, const char **URL_list, int URL_count)
     }
 
 
-    return "8.8.8.8";
+    return NULL;
 }

@@ -30,8 +30,7 @@
 #include "common.h"
 #include "utils.h"
 #include "nng-extras.h"
-
-#include <ini.h>
+#include "agent-config.h"
 
 #define TAG "agent"
 
@@ -42,14 +41,6 @@
 #ifndef PARALLEL
 #define PARALLEL 32
 #endif
-
-struct server_config
-{
-    const char     *start_url;
-    nng_log_level  log_level;
-
-    const char     *bash_file;
-};
 
 const char *bash_script_name;
 
@@ -165,12 +156,12 @@ server_cb(void *arg)
 
 	switch (work->state) {
 	case INIT:
-	    printf("INIT...\n");
+        nng_log_debug(TAG, "INIT...");
 		work->state = RECV;
 		nng_recv_aio(work->sock, work->aio);
 		break;
 	case RECV:
-        printf("RECV...\n");
+        nng_log_debug(TAG, "RECV...");
 		if ((rv = nng_aio_result(work->aio)) != 0) {
             nng_fatal("nng_recv_aio()", rv);
 		}
@@ -185,8 +176,11 @@ server_cb(void *arg)
         if ( cmd == CMD_CHECK_USER ) {
             username = nng_msg_trim_str(msg);
 
+            nng_log_notice(TAG, "bash \"is_user_on_host(%s)\":", username);
             work->usrPresent = is_user_on_host(username);
+            nng_log_notice(TAG, "bash \"calc_user_work_time(%s)\":", username);
             work->usrJobTime = calc_user_work_time(username);
+            nng_log_notice(TAG, "bash \"calc_srv_la(%s)\":", username);
             work->srvLA = calc_srv_la(username);
         }
 
@@ -195,7 +189,7 @@ server_cb(void *arg)
 		nng_sleep_aio(1, work->aio);
 		break;
 	case WAIT:
-        printf("WAIT...\n");
+        nng_log_debug(TAG, "WAIT...");
 		// We could add more data to the message here.
         nng_msg_clear(work->msg);
 
@@ -220,7 +214,7 @@ server_cb(void *arg)
 		nng_send_aio(work->sock, work->aio);
 		break;
 	case SEND:
-        printf("SEND...\n");
+        nng_log_debug(TAG, "SEND...");
 		if ((rv = nng_aio_result(work->aio)) != 0) {
 			nng_msg_free(work->msg);
             nng_fatal("nng_send_aio()", rv);
@@ -284,7 +278,6 @@ server(const char *url)
 
 
 	for (i = 0; i < PARALLEL; i++) {
-        printf("---- server_cb(works[%d]) \n", i);
 		server_cb(works[i]); // this starts them going (INIT state)
 	}
 
@@ -293,41 +286,7 @@ server(const char *url)
 	}
 }
 
-static int config_cb(void* user, const char* section, const char* name,
-                     const char* value)
-{
-    errno = 0;
-    struct server_config* pconfig = (struct server_config *)user;
 
-#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-#define MATCH_1(s, n) strcmp(section, s) == 0 && strstr(name, n) != NULL
-
-    if ( MATCH("server", "interface") ) {
-            pconfig->start_url = strdup(value);
-
-    } else if ( MATCH("logs", "level") ) {
-        pconfig->log_level = NNG_LOG_DEBUG;
-
-        if ( strcmp(value, "LOG_NONE") == 0 )
-            pconfig->log_level = NNG_LOG_NONE;
-        if ( strcmp(value, "LOG_ERR") == 0 )
-            pconfig->log_level = NNG_LOG_ERR;
-        if ( strcmp(value, "LOG_WARN") == 0 )
-            pconfig->log_level = NNG_LOG_WARN;
-        if ( strcmp(value, "LOG_NOTICE") == 0 )
-            pconfig->log_level = NNG_LOG_NOTICE;
-        if ( strcmp(value, "LOG_INFO") == 0 )
-            pconfig->log_level = NNG_LOG_INFO;
-        if ( strcmp(value, "LOG_DEBUG") == 0 )
-            pconfig->log_level = NNG_LOG_DEBUG;
-
-    } else if (MATCH("bash_script", "file")) {
-        pconfig->bash_file = strdup(value);
-    } else {
-        return 0;  /* unknown section/name, error */
-    }
-    return 1;
-}
 
 
 
@@ -336,42 +295,13 @@ main(int argc, char **argv)
 {
 	int rc;
 
-    static char* conf_file = NULL;
-    struct server_config srv_conf = {0};
-    const char* app = argv[0];
+    srv_conf_t srv_conf = {0};
 
-
-    for (int i = 1; i < argc; i++)
-    {
-        char* arg = argv[i];
-
-        if ( strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
-        {
-            usage(app, arg);
-
-        } else if ( strcmp(arg, "-f") == 0) {
-            i++;
-            conf_file = argv[i];
-            //if (!PathFileExists(conf_file))
-            //    usage(app, arg);
-        }
-        else
-            usage(app, arg);
-    }
+    if ( init_server_config(argc, argv, &srv_conf) != 0 )
+        exit(EXIT_FAILURE);
 
     nng_log_set_logger(nng_stderr_logger);
-    nng_log_set_level(NNG_LOG_NOTICE);
-
-    if (ini_parse(conf_file, config_cb, &srv_conf) < 0)
-        usage(app, NULL);
-
-    nng_log_notice(TAG, "Config loaded from '%s'", conf_file);
-    nng_log_notice(TAG, "   interface = %s", srv_conf.start_url);
-    nng_log_notice(TAG, "   log level = %d", srv_conf.log_level);
-    nng_log_notice(TAG, "   bash file = %s", srv_conf.bash_file);
-
     nng_log_set_level(srv_conf.log_level);
-
     bash_script_name = srv_conf.bash_file;
 
     rc = server(srv_conf.start_url);

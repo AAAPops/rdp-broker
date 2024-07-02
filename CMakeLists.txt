@@ -73,7 +73,10 @@ target_link_libraries(_rdp-client ${NNG_DIR}/lib/libnng.a  Threads::Threads)
 #target_compile_definitions(client PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 
 
-add_executable(rdp-agent  nng_src/agent.c  ${COMMON_NNG_SRC} )
+add_executable(rdp-agent  nng_src/agent.c
+		nng_src/agent-config.c
+		nng_src/agent-config.h
+		${COMMON_NNG_SRC} )
 target_link_libraries(rdp-agent ${NNG_DIR}/lib/libnng.a  ${INIH}  Threads::Threads)
 target_compile_definitions(rdp-agent PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 

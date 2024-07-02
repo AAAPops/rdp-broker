@@ -169,6 +169,8 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
 
     //char *target_net_addr = "192.168.1.120";
     char *target_net_addr = nng_client(Username, srv_conf->url_list, srv_conf->url_count);
+    if ( target_net_addr == NULL )
+        return FALSE;
 
     // LB_TARGET_NET_ADDRESS | LB_USERNAME | LB_DOMAIN | LB_TARGET_FQDN | LB_TARGET_NETBIOS_NAME |
     // LB_TARGET_NET_ADDRESSES |LB_CLIENT_TSV_URL |LB_SERVER_TSV_CAPABLE

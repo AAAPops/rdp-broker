@@ -1,7 +1,7 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 
-#define VERSION 0.0.1a
+#define VERSION "0.0.1a"
 
 #define CLIENT "client"
 #define AGENT  "agent"
