@@ -176,11 +176,11 @@ server_cb(void *arg)
         if ( cmd == CMD_CHECK_USER ) {
             username = nng_msg_trim_str(msg);
 
-            nng_log_notice(TAG, "bash \"is_user_on_host(%s)\":", username);
+            nng_log_info(TAG, "bash \"is_user_on_host(%s)\":", username);
             work->usrPresent = is_user_on_host(username);
-            nng_log_notice(TAG, "bash \"calc_user_work_time(%s)\":", username);
+            nng_log_info(TAG, "bash \"calc_user_work_time(%s)\":", username);
             work->usrJobTime = calc_user_work_time(username);
-            nng_log_notice(TAG, "bash \"calc_srv_la(%s)\":", username);
+            nng_log_info(TAG, "bash \"calc_srv_la(%s)\":", username);
             work->srvLA = calc_srv_la(username);
         }
 

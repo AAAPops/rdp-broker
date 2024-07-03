@@ -83,6 +83,9 @@ target_compile_definitions(rdp-agent PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PAR
 set(BROKER_SRCS
 		rdp-broker.c
 		rdp-broker.h
+		common.h
+		broker-config.c
+		broker-config.h
 		nng_src/nng-client.c
 		nng_src/nng-client.h
 		${COMMON_NNG_SRC}

@@ -5,10 +5,11 @@
 #include <string.h>
 #include <errno.h>
 
+#include <freerdp/freerdp.h>
 #include <ini.h>
 
 #include "common.h"
-#include "agent-config.h"
+#include "broker-config.h"
 
 /*
 [WLOG_DEBUG] = "LOG_DEBUG" --> WLog_DBG()
@@ -23,10 +24,9 @@
 [NNG_LOG_ERR]    = "LOG_ERR"   --> nng_log_err()
 [NNG_LOG_NONE]   = "LOG_OFF"
 */
-
-const char* logNames[] = { [NNG_LOG_NONE]  = "LOG_OFF",  [NNG_LOG_ERR]  = "LOG_ERR",
-                           [NNG_LOG_WARN]  = "LOG_WARN", [NNG_LOG_INFO] = "LOG_INFO",
-                           [NNG_LOG_DEBUG] = "LOG_DEBUG"};
+const char* logNames[] = { [WLOG_DEBUG] = "LOG_DEBUG", [WLOG_INFO]  = "LOG_INFO",
+                           [WLOG_WARN]  = "LOG_WARN",  [WLOG_ERROR] = "LOG_ERR",
+                           [WLOG_OFF]   = "LOG_OFF"};
 
 typedef struct _cmd {
     const char *confFile;
@@ -92,47 +92,68 @@ static int pars_app_cmd(const int argc, char **argv, cmd_t *my_cmd) {
 }
 
 
-
 static int config_cb(void* user, const char* section, const char* name,
                      const char* value)
 {
     errno = 0;
-    srv_conf_t * pconfig = (srv_conf_t *)user;
+    srv_conf_t *pconfig = (srv_conf_t *)user;
 
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
 #define MATCH_1(s, n) strcmp(section, s) == 0 && strstr(name, n) != NULL
 
     if ( MATCH("server", "interface") ) {
-        pconfig->start_url = strdup(value);
+        if ( strcmp(value, "All") == 0 )
+            pconfig->interface = NULL;
+        else
+            pconfig->interface = strdup(value);
+
+    } else if ( MATCH("server", "port") ) {
+        pconfig->port = strtol(value, NULL, 10);
+
+        if ((pconfig->port < 1) || (pconfig->port > UINT16_MAX) || (errno != 0))
+            return 0;
 
     } else if ( MATCH("logs", "level") ) {
+        //LOG_ERR, LOG_WARN, LOG_INFO, LOG_DEBUG, LOG_OFF
 
         if ( strcmp(value, "LOG_OFF") == 0 )
-            pconfig->log_level = NNG_LOG_NONE;
+            pconfig->log_level = WLOG_OFF;
         else if ( strcmp(value, "LOG_ERR") == 0 )
-            pconfig->log_level = NNG_LOG_ERR;
+            pconfig->log_level = WLOG_ERROR;
         else if ( strcmp(value, "LOG_WARN") == 0 )
-            pconfig->log_level = NNG_LOG_WARN;
+            pconfig->log_level = WLOG_WARN;
         else if ( strcmp(value, "LOG_INFO") == 0 )
-            pconfig->log_level = NNG_LOG_INFO;
+            pconfig->log_level = WLOG_INFO;
         else
-            pconfig->log_level = NNG_LOG_DEBUG;
+            pconfig->log_level = WLOG_DEBUG;
 
-    } else if (MATCH("bash_script", "file")) {
-        pconfig->bash_file = strdup(value);
+    } else if ( MATCH("tls", "cert") ) {
+        pconfig->cert = strdup(value);
+
+    } else if ( MATCH("tls", "key") ) {
+        pconfig->key = strdup(value);
+
+    } else if (MATCH_1("agents", "url-")) {
+        pconfig->url_list[pconfig->url_count] = strdup(value);
+        pconfig->url_count++;
     } else {
         return 0;  /* unknown section/name, error */
     }
     return 1;
 }
 
+
 static void dump_configuration(const char* conf_file, srv_conf_t *srv_conf) {
     FILE *fp = stdout;
 
-    fprintf(fp, "Config loaded from file \"%s\" \n", conf_file);
-    fprintf(fp, "   interface = %s \n", srv_conf->start_url);
-    fprintf(fp, "   log level = %s \n", logNames[srv_conf->log_level]);
-    fprintf(fp, "   bash file = %s \n", srv_conf->bash_file);
+    fprintf(fp, "Config loaded from \"%s\"\n", conf_file);
+    fprintf(fp, "   interface = %s \n", ( srv_conf->interface ) ? srv_conf->interface : "All" );
+    fprintf(fp, "   port = %d \n", srv_conf->port);
+    fprintf(fp, "   cert = %s \n", srv_conf->cert);
+    fprintf(fp, "   key  = %s \n", srv_conf->key);
+    for (int i = 0; i < srv_conf->url_count; ++i) {
+        fprintf(fp, "   url[%d] = %s \n", i, srv_conf->url_list[i]);
+    }
 }
 
 int init_server_config(int argc, char **argv, srv_conf_t *srv_conf) {
@@ -146,8 +167,10 @@ int init_server_config(int argc, char **argv, srv_conf_t *srv_conf) {
     if (ini_parse(appCmd.confFile, config_cb, srv_conf) != 0)
         usage(argv[0], NULL);
 
-    if ( PathFileExists(srv_conf->bash_file) != 0 )
-        ini_parsing_error(appCmd.confFile, srv_conf->bash_file);
+    if ( PathFileExists(srv_conf->cert) != 0 )
+        ini_parsing_error(appCmd.confFile, srv_conf->cert);
+    if ( PathFileExists(srv_conf->key) != 0 )
+        ini_parsing_error(appCmd.confFile, srv_conf->key);
 
     dump_configuration(appCmd.confFile, srv_conf);
 

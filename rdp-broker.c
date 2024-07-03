@@ -38,10 +38,6 @@
 #include <freerdp/streamdump.h>
 #include <freerdp/transport_io.h>
 
-//#include <freerdp/channels/wtsvc.h>
-//#include <freerdp/channels/channels.h>
-//#include <freerdp/channels/drdynvc.h>
-
 #include <freerdp/freerdp.h>
 #include <freerdp/constants.h>
 #include <freerdp/settings.h>
@@ -49,24 +45,13 @@
 
 #include "rdp-broker.h"
 #include "nng_src//nng-client.h"
+#include "broker-config.h"
 
 #include <freerdp/log.h>
 #define TAG SERVER_TAG("broker")
 
 #include <ini.h>
 
-
-struct server_config
-{
-	const char  *cert;
-	const char  *key;
-
-    const char  *interface;
-    UINT16      port;
-
-    const char  *url_list[16];
-    int         url_count;
-};
 
 static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
 {
@@ -122,7 +107,7 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     const char* Passwd;
 
 	WINPR_ASSERT(client);
-    struct server_config* srv_conf = client->ContextExtra;
+    srv_conf_t *srv_conf = client->ContextExtra;
 
 	context = (testPeerContext*)client->context;
 	WINPR_ASSERT(context);
@@ -207,7 +192,7 @@ static DWORD WINAPI test_peer_mainloop(LPVOID arg)
 	DWORD count = 0;
 	DWORD status = 0;
 	testPeerContext* context = NULL;
-	struct server_config* info = NULL;
+    srv_conf_t *info = NULL;
 	rdpSettings* settings = NULL;
 	freerdp_peer* client = (freerdp_peer*)arg;
 
@@ -386,41 +371,7 @@ static WINPR_NORETURN(void usage(const char* app, const char* invalid))
 	exit(-1);
 }
 
-static int config_cb(void* user, const char* section, const char* name,
-                   const char* value)
-{
-    errno = 0;
-    struct server_config* pconfig = (struct server_config *)user;
 
-#define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
-#define MATCH_1(s, n) strcmp(section, s) == 0 && strstr(name, n) != NULL
-
-    if ( MATCH("server", "interface") ) {
-        if ( strcmp(value, "*") == 0 )
-            pconfig->interface = NULL;
-        else
-            pconfig->interface = strdup(value);
-
-    } else if ( MATCH("server", "port") ) {
-        pconfig->port = strtol(value, NULL, 10);
-
-        if ((pconfig->port < 1) || (pconfig->port > UINT16_MAX) || (errno != 0))
-            return 0;
-
-    } else if ( MATCH("tls", "cert") ) {
-        pconfig->cert = strdup(value);
-
-    } else if ( MATCH("tls", "key") ) {
-        pconfig->key = strdup(value);
-
-    } else if (MATCH_1("agents", "url-")) {
-        pconfig->url_list[pconfig->url_count] = strdup(value);
-        pconfig->url_count++;
-    } else {
-        return 0;  /* unknown section/name, error */
-    }
-    return 1;
-}
 
 int main(int argc, char* argv[])
 {
@@ -428,41 +379,13 @@ int main(int argc, char* argv[])
 	BOOL started = FALSE;
 	WSADATA wsaData = { 0 };
 	freerdp_listener* instance = NULL;
+    srv_conf_t srv_conf = {0};
 
-	static char* conf_file = NULL;
-	struct server_config srv_conf = {0};
-	const char* app = argv[0];
+    if ( init_server_config(argc, argv, &srv_conf) != 0 )
+        exit(EXIT_FAILURE);
 
-
-	for (int i = 1; i < argc; i++)
-	{
-		char* arg = argv[i];
-
-        if ( strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
-		{
-            usage(app, arg);
-
-        } else if ( strcmp(arg, "-f") == 0) {
-            i++;
-            conf_file = argv[i];
-			if (!winpr_PathFileExists(conf_file))
-				usage(app, arg);
-		}
-		else
-			usage(app, arg);
-	}
-
-    if (ini_parse(conf_file, config_cb, &srv_conf) < 0)
-        usage(app, NULL);
-
-    WLog_INFO(TAG, "Config loaded from '%s'", conf_file);
-    WLog_INFO(TAG, "   interface = %s", ( srv_conf.interface ) ? srv_conf.interface : "\"*\"" );
-    WLog_INFO(TAG, "   port = %d", srv_conf.port);
-    WLog_INFO(TAG, "   cert = %s", srv_conf.cert);
-    WLog_INFO(TAG, "   key  = %s", srv_conf.key);
-    for (int i = 0; i < srv_conf.url_count; ++i) {
-        WLog_INFO(TAG, "   url[%d] = %s", i, srv_conf.url_list[i]);
-    }
+    wLog* logA = WLog_Get(TAG);
+    WLog_SetLogLevel(logA, srv_conf.log_level);
 
 	//WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
