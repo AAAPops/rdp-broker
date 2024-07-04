@@ -22,6 +22,8 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 #include <nng/nng.h>
 #include <nng/protocol/reqrep0/rep.h>
@@ -33,6 +35,8 @@
 #include "agent-config.h"
 
 #define TAG "agent"
+
+int run_as_daemon(void);
 
 // Parallel is the maximum number of outstanding requests we can handle.
 // This is *NOT* the number of threads in use, but instead represents
@@ -300,11 +304,74 @@ main(int argc, char **argv)
     if ( init_server_config(argc, argv, &srv_conf) != 0 )
         exit(EXIT_FAILURE);
 
+    bash_script_name = srv_conf.bash_file;
+
     nng_log_set_logger(nng_stderr_logger);
     nng_log_set_level(srv_conf.log_level);
-    bash_script_name = srv_conf.bash_file;
+
+    if( srv_conf.run_mode == RUN_MODE_DAEMON ) {
+        nng_log_set_logger(nng_null_logger);
+
+        if ( run_as_daemon() != 0)
+            exit(EXIT_FAILURE);
+    }
 
     rc = server(srv_conf.start_url);
 
 	exit(rc == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+int run_as_daemon(void) {
+    /* Our process ID and Session ID */
+    pid_t pid, sid;
+    FILE *fp = stdout;
+
+    /* Fork off the parent process */
+    pid = fork();
+    if( pid < 0 ) {
+        fprintf(fp, "fork() [%m] \n");
+        return -1;
+    }
+    /* If we got a good PID, then we can exit the parent process. */
+    if (pid > 0) { // Parent process has finished executing
+        fprintf(fp, "Current process finished. Daemon starts... \n");
+        exit(0);
+    }
+
+    /* Change the file mode mask */
+    umask(0);
+
+    /* Open any logs here
+    FILE *log_fp;
+    log_fp = fopen(LOG_FILE_NAME, "w");
+    if (log_fp) {
+        log_set_fp(log_fp);
+    } else {
+        log_warn("fopen() [%m]");
+        log_warn("Continue without logging into file '%s'", LOG_FILE_NAME);
+    }
+    */
+
+
+    /* Create a new SID for the child process */
+    sid = setsid();
+    if (sid < 0) {
+        fprintf(fp, "setsid() [%m] \n");
+        return -1;
+    }
+
+    /* Change the current working directory */
+    if( chdir("/") < 0 ) {
+        fprintf(fp, "chdir() [%m] \n");
+        return -1;
+    }
+
+    /* Close out the standard file descriptors */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    /* Daemon-specific initialization goes here */
+
+    return 0;
 }

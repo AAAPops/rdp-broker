@@ -134,6 +134,8 @@ static void dump_configuration(const char* conf_file, srv_conf_t *srv_conf) {
     fprintf(fp, "   interface = %s \n", srv_conf->start_url);
     fprintf(fp, "   log level = %s \n", logNames[srv_conf->log_level]);
     fprintf(fp, "   bash file = %s \n", srv_conf->bash_file);
+    fprintf(fp, "   run mode  = %s \n",
+            ( srv_conf->run_mode == RUN_MODE_NORMAL) ? "Normal" : "Daemon");
 }
 
 int init_server_config(int argc, char **argv, srv_conf_t *srv_conf) {
@@ -143,6 +145,7 @@ int init_server_config(int argc, char **argv, srv_conf_t *srv_conf) {
     pars_app_cmd(argc, argv, &appCmd);
     //printf("--- appCmd.confFile  = %s\n", appCmd.confFile);
     //printf("--- appCmd.debugMode = %d\n", appCmd.debugMode);
+    srv_conf->run_mode = ( appCmd.debugMode == 1 )? RUN_MODE_NORMAL : RUN_MODE_DAEMON;
 
     if (ini_parse(appCmd.confFile, config_cb, srv_conf) != 0)
         usage(argv[0], NULL);
