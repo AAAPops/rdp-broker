@@ -6,7 +6,7 @@
 #include <nng/protocol/reqrep0/rep.h>
 #include <nng/protocol/reqrep0/req.h>
 
-#include "common.h"
+#include "nng-common.h"
 #include "utils.h"
 #include "nng-extras.h"
 
@@ -114,14 +114,14 @@ nng_client(const char *username, const char **URL_list, int URL_count)
         nng_msg_free(msg);
         nng_close(sock);
 
-        printf("-----\n");
-        printf("User '%s'\n", info[i].usreName);
-        printf("   - on Server      '%s'\n", info[i].srvURL);
-        printf("   - srv LA:        %d\n",  info[i].srvLA);
-        printf("   - srv Alive:     %d\n",  info[i].srvAlive);
-        printf("   - \n");
-        printf("   - user present:  %d\n",  info[i].usrPresent);
-        printf("   - user job time: %ld\n", info[i].usrJobTime);
+        nng_log_info(NULL, "-----");
+        nng_log_info(NULL, "User '%s'", info[i].usreName);
+        nng_log_info(NULL, "   - on Server      '%s'", info[i].srvURL);
+        nng_log_info(NULL, "   - srv LA:        %d",  info[i].srvLA);
+        nng_log_info(NULL, "   - srv Alive:     %d",  info[i].srvAlive);
+        nng_log_info(NULL, "   -");
+        nng_log_info(NULL, "   - user present:  %d",  info[i].usrPresent);
+        nng_log_info(NULL, "   - user job time: %ld", info[i].usrJobTime);
     }
 
     // Make decision if user PRESENT on any host
@@ -140,7 +140,9 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
     outputSrvIp = redirect_to_ip(tmpURL);
     if ( outputSrvIp != NULL ) {
-        printf("\nRedirect user to existed session on Srv: %s <=== %s\n", outputSrvIp, tmpURL);
+        nng_log_info(NULL, "---");
+        nng_log_info(NULL, "Redirect user to existed session on Srv: %s <=== %s\n",
+                     outputSrvIp, tmpURL);
         return outputSrvIp;
     }
 
@@ -156,7 +158,9 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
     outputSrvIp = redirect_to_ip(tmpURL);
     if ( outputSrvIp != NULL ) {
-        printf("\nChoose host for new user: %s <=== %s\n", outputSrvIp, tmpURL);
+        nng_log_info(NULL, "---");
+        nng_log_info(NULL, "Choose host for new user: %s <=== %s\n",
+                     outputSrvIp, tmpURL);
         return outputSrvIp;
     }
 

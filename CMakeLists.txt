@@ -60,7 +60,7 @@ find_package(Threads)
 
 
 set(COMMON_NNG_SRC
-		nng_src/common.h
+		nng_src/nng-common.h
 		nng_src/utils.c
 		nng_src/utils.h
 		nng_src/nng-extras.c
@@ -73,7 +73,8 @@ target_link_libraries(_rdp-client ${NNG_DIR}/lib/libnng.a  Threads::Threads)
 #target_compile_definitions(client PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PARALLEL})
 
 
-add_executable(rdp-agent  nng_src/agent.c
+add_executable(rdp-agent
+		nng_src/agent.c
 		nng_src/agent-config.c
 		nng_src/agent-config.h
 		${COMMON_NNG_SRC} )
@@ -83,7 +84,7 @@ target_compile_definitions(rdp-agent PRIVATE NNG_ELIDE_DEPRECATED PARALLEL=${PAR
 set(BROKER_SRCS
 		rdp-broker.c
 		rdp-broker.h
-		common.h
+		version.h
 		broker-config.c
 		broker-config.h
 		nng_src/nng-client.c

@@ -9,14 +9,14 @@
 void
 nng_fatal(const char *func, int rv)
 {
-    fprintf(stderr, "%s: %s\n", func, nng_strerror(rv));
+    nng_log_err(NULL, "%s: %s", func, nng_strerror(rv));
     exit(1);
 }
 
 void
 nng_err(const char *func, int rv)
 {
-    fprintf(stderr, "%s: %s\n", func, nng_strerror(rv));
+    nng_log_err(NULL, "%s: %s", func, nng_strerror(rv));
 }
 
 

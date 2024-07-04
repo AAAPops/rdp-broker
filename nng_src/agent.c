@@ -27,7 +27,7 @@
 #include <nng/protocol/reqrep0/rep.h>
 #include <nng/protocol/reqrep0/req.h>
 
-#include "common.h"
+#include "nng-common.h"
 #include "utils.h"
 #include "nng-extras.h"
 #include "agent-config.h"

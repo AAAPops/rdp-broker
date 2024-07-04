@@ -7,7 +7,8 @@
 
 #include <ini.h>
 
-#include "common.h"
+#include "../version.h"
+#include "nng-common.h"
 #include "agent-config.h"
 
 /*

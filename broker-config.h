@@ -3,6 +3,9 @@
 
 #include <nng/nng.h>
 
+#define RUN_MODE_NORMAL   0
+#define RUN_MODE_DAEMON   1
+
 typedef struct _server_config
 {
     const char  *cert;
@@ -15,7 +18,7 @@ typedef struct _server_config
     const char  *url_list[16];
     int         url_count;
 
-    int         foreground;
+    int         run_mode;
 } srv_conf_t;
 
 

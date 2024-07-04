@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <sys/stat.h>
 
 #include <winpr/winpr.h>
 #include <winpr/crt.h>
@@ -42,9 +43,11 @@
 #include <freerdp/constants.h>
 #include <freerdp/settings.h>
 #include <freerdp/redirection.h>
+#include <nng/nng.h>
 
 #include "rdp-broker.h"
-#include "nng_src//nng-client.h"
+#include "nng_src/nng-client.h"
+
 #include "broker-config.h"
 
 #include <freerdp/log.h>
@@ -52,6 +55,8 @@
 
 #include <ini.h>
 
+int run_as_daemon(void);
+nng_log_level get_nng_log_level(int wlog_level);
 
 static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
 {
@@ -372,7 +377,6 @@ static WINPR_NORETURN(void usage(const char* app, const char* invalid))
 }
 
 
-
 int main(int argc, char* argv[])
 {
 	int rc = -1;
@@ -384,8 +388,28 @@ int main(int argc, char* argv[])
     if ( init_server_config(argc, argv, &srv_conf) != 0 )
         exit(EXIT_FAILURE);
 
-    wLog* logA = WLog_Get(TAG);
-    WLog_SetLogLevel(logA, srv_conf.log_level);
+    wLog *logRoot = WLog_GetRoot();
+    wLog* logBroker = WLog_Get(TAG);
+    WLog_SetLogLevel(logBroker, srv_conf.log_level);
+
+    nng_log_set_logger(nng_stderr_logger);
+    nng_log_level nngLogLevel = get_nng_log_level(srv_conf.log_level);
+    nng_log_set_level(nngLogLevel);
+
+    //////////
+    //WLog_SetLogLevel(logRoot, WLOG_OFF);
+    //WLog_SetLogLevel(logBroker, WLOG_OFF);
+    //nng_log_set_logger(nng_null_logger);
+
+    if( srv_conf.run_mode == RUN_MODE_DAEMON ) {
+        WLog_SetLogLevel(logRoot, WLOG_OFF);
+        WLog_SetLogLevel(logBroker, WLOG_OFF);
+        nng_log_set_logger(nng_null_logger);
+
+        if ( run_as_daemon() != 0)
+            exit(EXIT_FAILURE);
+    }
+
 
 	//WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
@@ -416,3 +440,92 @@ fail:
 	WSACleanup();
 	return rc;
 }
+
+
+int run_as_daemon(void) {
+    /* Our process ID and Session ID */
+    pid_t pid, sid;
+    FILE *fp = stdout;
+
+    /* Fork off the parent process */
+    pid = fork();
+    if( pid < 0 ) {
+        fprintf(fp, "fork() [%m] \n");
+        return -1;
+    }
+    /* If we got a good PID, then we can exit the parent process. */
+    if (pid > 0) { // Parent process has finished executing
+        fprintf(fp, "Current process finished. Daemon starts... \n");
+        exit(0);
+    }
+
+    /* Change the file mode mask */
+    umask(0);
+
+    /* Open any logs here
+    FILE *log_fp;
+    log_fp = fopen(LOG_FILE_NAME, "w");
+    if (log_fp) {
+        log_set_fp(log_fp);
+    } else {
+        log_warn("fopen() [%m]");
+        log_warn("Continue without logging into file '%s'", LOG_FILE_NAME);
+    }
+    */
+
+
+    /* Create a new SID for the child process */
+    sid = setsid();
+    if (sid < 0) {
+        fprintf(fp, "setsid() [%m] \n");
+        return -1;
+    }
+
+    /* Change the current working directory */
+    if( chdir("/") < 0 ) {
+        fprintf(fp, "chdir() [%m] \n");
+        return -1;
+    }
+
+    /* Close out the standard file descriptors */
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    /* Daemon-specific initialization goes here */
+
+    return 0;
+}
+
+nng_log_level get_nng_log_level(int wlog_level) {
+    nng_log_level nng_level = 0;
+
+    if ( wlog_level ==  WLOG_DEBUG )
+        nng_level = NNG_LOG_DEBUG;
+    else if ( wlog_level ==  WLOG_INFO )
+        nng_level = NNG_LOG_INFO;
+    else if ( wlog_level ==  WLOG_WARN )
+        nng_level = NNG_LOG_WARN;
+    else if ( wlog_level ==  WLOG_ERROR )
+        nng_level = NNG_LOG_ERR;
+    else if ( wlog_level ==  WLOG_OFF )
+        nng_level = NNG_LOG_NONE;
+    else
+        nng_level = WLOG_DEBUG;
+
+    return nng_level;
+}
+
+/*
+    wLog *logA = WLog_Get(TAG);
+    WLog_SetLogLevel(logA, srv_conf.log_level);
+    WLog_SetLogLevel(logA, WLOG_OFF);
+
+    wLog *logRoot = WLog_GetRoot();
+    WLog_SetLogLevel(logRoot, WLOG_OFF);
+
+    //nng_log_set_logger(nng_null_logger);
+    nng_log_set_logger(nng_stderr_logger);
+    nng_log_set_level(NNG_LOG_INFO);
+ */
+
