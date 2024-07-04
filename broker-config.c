@@ -151,7 +151,8 @@ static void dump_configuration(const char* conf_file, srv_conf_t *srv_conf) {
     fprintf(fp, "   port      = %d \n", srv_conf->port);
     fprintf(fp, "   cert      = %s \n", srv_conf->cert);
     fprintf(fp, "   key       = %s \n", srv_conf->key);
-    fprintf(fp, "   run mode  = %s \n", ( srv_conf->run_mode == RUN_MODE_NORMAL) ? "Normal" : "Daemon");
+    fprintf(fp, "   run mode  = %s \n",
+            ( srv_conf->run_mode == RUN_MODE_NORMAL) ? "Normal" : "Daemon");
     for (int i = 0; i < srv_conf->url_count; ++i) {
         fprintf(fp, "   url[%d]  = %s \n", i, srv_conf->url_list[i]);
     }
