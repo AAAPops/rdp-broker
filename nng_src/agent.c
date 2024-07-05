@@ -63,7 +63,7 @@ int exec_script(const char *script_name, char *args, char *output, int out_len)
 
     /* Read the output a line at a time - output it. */
     while (fgets(output, out_len, fp) != NULL) {
-        printf("%s", output);
+        //printf("%s", output);
     }
 
     /* close */
@@ -180,12 +180,14 @@ server_cb(void *arg)
         if ( cmd == CMD_CHECK_USER ) {
             username = nng_msg_trim_str(msg);
 
-            nng_log_info(TAG, "bash \"is_user_on_host(%s)\":", username);
             work->usrPresent = is_user_on_host(username);
-            nng_log_info(TAG, "bash \"calc_user_work_time(%s)\":", username);
+            nng_log_info(TAG, "bash \"is_user_on_host(%s)\" = %d", username, work->usrPresent);
+
             work->usrJobTime = calc_user_work_time(username);
-            nng_log_info(TAG, "bash \"calc_srv_la(%s)\":", username);
+            nng_log_info(TAG, "bash \"calc_user_work_time(%s)\" = %d", username, work->usrJobTime);
+
             work->srvLA = calc_srv_la(username);
+            nng_log_info(TAG, "bash \"calc_srv_la(%s)\" = %d", username, work->srvLA);
         }
 
 		work->msg   = msg;
@@ -310,7 +312,8 @@ main(int argc, char **argv)
     nng_log_set_level(srv_conf.log_level);
 
     if( srv_conf.run_mode == RUN_MODE_DAEMON ) {
-        nng_log_set_logger(nng_null_logger);
+        //nng_log_set_logger(nng_null_logger);
+        nng_log_set_logger(nng_system_logger);
 
         if ( run_as_daemon() != 0)
             exit(EXIT_FAILURE);

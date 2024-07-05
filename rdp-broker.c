@@ -57,6 +57,7 @@
 
 int run_as_daemon(void);
 nng_log_level get_nng_log_level(int wlog_level);
+void test_log_system_logger(void);
 
 static void test_peer_context_free(freerdp_peer* client, rdpContext* ctx)
 {
@@ -377,6 +378,7 @@ static WINPR_NORETURN(void usage(const char* app, const char* invalid))
 }
 
 
+
 int main(int argc, char* argv[])
 {
 	int rc = -1;
@@ -396,15 +398,13 @@ int main(int argc, char* argv[])
     nng_log_level nngLogLevel = get_nng_log_level(srv_conf.log_level);
     nng_log_set_level(nngLogLevel);
 
-    //////////
-    //WLog_SetLogLevel(logRoot, WLOG_OFF);
-    //WLog_SetLogLevel(logBroker, WLOG_OFF);
-    //nng_log_set_logger(nng_null_logger);
-
+    //-------------------------------------------------//
     if( srv_conf.run_mode == RUN_MODE_DAEMON ) {
         WLog_SetLogLevel(logRoot, WLOG_OFF);
         WLog_SetLogLevel(logBroker, WLOG_OFF);
-        nng_log_set_logger(nng_null_logger);
+
+        nng_log_set_logger(nng_system_logger);
+        //nng_log_set_logger(nng_null_logger);
 
         if ( run_as_daemon() != 0)
             exit(EXIT_FAILURE);
@@ -517,6 +517,41 @@ nng_log_level get_nng_log_level(int wlog_level) {
         nng_level = WLOG_DEBUG;
 
     return nng_level;
+}
+
+
+void
+test_log_system_logger(void)
+{
+    nng_log_set_logger(nng_system_logger);
+    //nng_log_set_logger(nng_stderr_logger);
+    nng_log_set_level(NNG_LOG_DEBUG);
+    nng_log_debug(NULL, "This is a test message, ignore me");
+    nng_log_set_facility(NNG_LOG_DAEMON);
+    nng_log_debug(NULL, "This is a test message (DAEMON), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL0);
+    nng_log_debug(NULL, "This is a test message (LOCAL0), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL1);
+    nng_log_debug(NULL, "This is a test message (LOCAL1), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL2);
+    nng_log_debug(NULL, "This is a test message (LOCAL2), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL3);
+    nng_log_debug(NULL, "This is a test message (LOCAL3), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL4);
+    nng_log_debug(NULL, "This is a test message (LOCAL4), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL5);
+    nng_log_debug(NULL, "This is a test message (LOCAL5), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL6);
+    nng_log_debug(NULL, "This is a test message (LOCAL6), ignore me");
+    nng_log_set_facility(NNG_LOG_LOCAL7);
+    nng_log_debug(NULL, "This is a test message (LOCAL7), ignore me");
+
+    nng_log_set_facility(NNG_LOG_USER);
+    nng_log_debug(NULL, "This is a test message (LOCAL7), ignore me");
+    nng_log_err("TEST", "This is only a test (ERR). Ignore me.");
+    nng_log_warn("TEST", "This is only a test (WARN). Ignore me.");
+    nng_log_notice("TEST", "This is only a test (NOTICE). Ignore me.");
+    nng_log_info("TEST", "This is only a test (INFO). Ignore me.");
 }
 
 /*

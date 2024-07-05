@@ -1,6 +1,6 @@
 #ifndef _VERSIO_H
 #define _VERSIO_H
 
-#define VERSION "0.0.3a"
+#define VERSION "0.0.5a"
 
 #endif
