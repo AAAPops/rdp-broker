@@ -30,8 +30,8 @@ file=/opt/rdp-agent/agent.sh
 На выделенном хосте запускается демон **rdp-broker** с конфигурационным файлом
 ```
 [server]
-; examples: 127.0.0.1, 192.168.1.99. Возможно, стоит поменять "*" на ALL
-interface=*
+; examples: 127.0.0.1, 192.168.1.99
+interface=All
 port=3389
 
 [logs]
