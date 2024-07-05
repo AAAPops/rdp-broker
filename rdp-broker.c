@@ -153,12 +153,12 @@ static BOOL tf_peer_post_connect(freerdp_peer* client)
     /* !!! Insert here call to client that asks ALL agents about user with "Username"  !!! */
     //char *srv_list[] = { "tcp://192.168.1.120:5555", "tcp://192.168.1.121:5555" };
     WLog_INFO(TAG, "Agent's list:");
-    for (int i = 0; i < srv_conf->url_count; ++i) {
-        WLog_INFO(TAG, "   url[%d] = %s", i, srv_conf->url_list[i]);
+    for (int i = 0; i < srv_conf->agents_count; ++i) {
+        WLog_INFO(TAG, "   url[%d] = %s", i, srv_conf->agent[i].url);
     }
 
     //char *target_net_addr = "192.168.1.120";
-    char *target_net_addr = nng_client(Username, srv_conf->url_list, srv_conf->url_count);
+    char *target_net_addr = nng_client(Username, srv_conf->agent, srv_conf->agents_count);
     if ( target_net_addr == NULL )
         return FALSE;
 
@@ -410,13 +410,16 @@ int main(int argc, char* argv[])
             exit(EXIT_FAILURE);
     }
 
+    rc = nng_init_agents(srv_conf.agent, srv_conf.agents_count);
+    if ( rc != 0 )
+        goto fail;
 
-	//WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
+    //WTSRegisterWtsApiFunctionTable(FreeRDP_InitWtsApi());
 	winpr_InitializeSSL(WINPR_SSL_INIT_DEFAULT);
 	instance = freerdp_listener_new();
 
 	if (!instance)
-		return -1;
+        goto fail;;
 
 	instance->info = (void*)&srv_conf;
 	instance->PeerAccepted = test_peer_accepted;

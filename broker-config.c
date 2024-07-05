@@ -28,7 +28,7 @@ const char* logNames[] = { [WLOG_DEBUG] = "LOG_DEBUG", [WLOG_INFO]  = "LOG_INFO"
                            [WLOG_WARN]  = "LOG_WARN",  [WLOG_ERROR] = "LOG_ERR",
                            [WLOG_OFF]   = "LOG_OFF"};
 
-typedef struct _cmd {
+typedef struct {
     const char *confFile;
     int        debugMode;
 } cmd_t;
@@ -134,8 +134,8 @@ static int config_cb(void* user, const char* section, const char* name,
         pconfig->key = strdup(value);
 
     } else if (MATCH_1("agents", "url-")) {
-        pconfig->url_list[pconfig->url_count] = strdup(value);
-        pconfig->url_count++;
+        pconfig->agent[pconfig->agents_count].url = strdup(value);
+        pconfig->agents_count++;
     } else {
         return 0;  /* unknown section/name, error */
     }
@@ -153,8 +153,8 @@ static void dump_configuration(const char* conf_file, srv_conf_t *srv_conf) {
     fprintf(fp, "   key       = %s \n", srv_conf->key);
     fprintf(fp, "   run mode  = %s \n",
             ( srv_conf->run_mode == RUN_MODE_NORMAL) ? "Normal" : "Daemon");
-    for (int i = 0; i < srv_conf->url_count; ++i) {
-        fprintf(fp, "   url[%d]  = %s \n", i, srv_conf->url_list[i]);
+    for (int i = 0; i < srv_conf->agents_count; ++i) {
+        fprintf(fp, "   url[%d]  = %s \n", i, srv_conf->agent[i].url );
     }
     fprintf(fp, "\n");
 }
@@ -167,6 +167,7 @@ int init_server_config(int argc, char **argv, srv_conf_t *srv_conf) {
     //printf("--- appCmd.confFile  = %s\n", appCmd.confFile);
     //printf("--- appCmd.debugMode = %d\n", appCmd.debugMode);
     srv_conf->run_mode = ( appCmd.debugMode == 1 )? RUN_MODE_NORMAL : RUN_MODE_DAEMON;
+    srv_conf->agents_count = 0;
 
     if (ini_parse(appCmd.confFile, config_cb, srv_conf) != 0)
         usage(argv[0], NULL);

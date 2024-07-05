@@ -9,9 +9,10 @@
 #include "nng-common.h"
 #include "utils.h"
 #include "nng-extras.h"
+#include "../broker-config.h"
 
 
-typedef struct _info {
+typedef struct {
     char        usreName[USERNAME_MAX_LEN];
     uint32_t    usrPresent;
     uint64_t    usrJobTime;
@@ -25,9 +26,9 @@ typedef struct _info {
 
 /*  The client runs just once, and then returns. */
 char *
-nng_client(const char *username, const char **URL_list, int URL_count)
+nng_client(const char *username, agent_t *agent, int agent_count)
 {
-    nng_socket sock;
+    //nng_socket sock;
     int        rv;
     nng_msg *  msg;
     uint32_t   tmp_u32;
@@ -35,28 +36,14 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
     info_t info[32] = {0};
 
-    for (int i = 0; i < URL_count; ++i) {
+    for (int i = 0; i < agent_count; ++i) {
         // --------------- Init connection----------------
         strcpy(info[i].usreName, username);
-        strcpy(info[i].srvURL, URL_list[i]);
+        strcpy(info[i].srvURL, agent[i].url);
         info[i].usrPresent = 0;
         info[i].usrJobTime = 0;
         info[i].srvLA = 100;
         info[i].srvAlive = 0;
-
-        if ((rv = nng_req0_open(&sock)) != 0) {
-            nng_err("nng_req0_open()", rv);
-            goto err_1;
-        }
-
-        nng_socket_set_ms(sock, NNG_OPT_SENDTIMEO, 5000);
-        nng_socket_set_ms(sock, NNG_OPT_RECVTIMEO, 5000);
-
-        if ((rv = nng_dial(sock, info[i].srvURL, NULL, 0)) != 0) {
-            nng_err("nng_dial()", rv);
-            goto err_1;
-        }
-
 
         // ----------------- Send message ------------------
         if ((rv = nng_msg_alloc(&msg, 0)) != 0) {
@@ -74,14 +61,14 @@ nng_client(const char *username, const char **URL_list, int URL_count)
             goto err_1;
         }
 
-        if ((rv = nng_sendmsg(sock, msg, 0)) != 0) {
+        if ((rv = nng_sendmsg(agent[i].sock, msg, 0)) != 0) {
             nng_err("nng_send()", rv);
             goto err_1;
         }
 
 
         // ----------------- Receive message ------------------
-        if ((rv = nng_recvmsg(sock, &msg, 0)) != 0) {
+        if ((rv = nng_recvmsg(agent[i].sock, &msg, 0)) != 0) {
             nng_err("nng_recvmsg()", rv);
             goto err_1;
         }
@@ -112,7 +99,7 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
     err_1:
         nng_msg_free(msg);
-        nng_close(sock);
+        //nng_close(sock);
 
         nng_log_info(NULL, "-----");
         nng_log_info(NULL, "User '%s'", info[i].usreName);
@@ -130,7 +117,7 @@ nng_client(const char *username, const char **URL_list, int URL_count)
     char        tmpURL[128] = {0};
     char        *outputSrvIp = NULL;
 
-    for (int i = 0; i < URL_count; i++) {
+    for (int i = 0; i < agent_count; i++) {
         if ( (info[i].usrPresent == 1) && (info[i].usrJobTime > tmpJobTime))
         {
             tmpJobTime = info[i].usrJobTime;
@@ -148,7 +135,7 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
 
     // Make decision if user NOT present on any host
-    for (int i = 0; i < URL_count; i++) {
+    for (int i = 0; i < agent_count; i++) {
         if ( (info[i].srvAlive == 1) && (info[i].srvLA < tmpLA) )
         {
             tmpLA = info[i].srvLA;
@@ -166,4 +153,35 @@ nng_client(const char *username, const char **URL_list, int URL_count)
 
 
     return NULL;
+}
+
+
+int nng_init_agents(agent_t *agent, int agent_count) {
+    int rv;
+    nng_dialer dialer;
+
+    for (int i = 0; i < agent_count; ++i) {
+
+        if ((rv = nng_req0_open(&agent[i].sock)) != 0) {
+            nng_err("nng_req0_open()", rv);
+            goto err_1;
+        }
+
+        nng_socket_set_ms(agent[i].sock, NNG_OPT_SENDTIMEO, 300);
+        nng_socket_set_ms(agent[i].sock, NNG_OPT_RECVTIMEO, 5000);
+
+        if ((rv = nng_dialer_create(&dialer, agent[i].sock, agent[i].url)) != 0) {
+            nng_err("nng_dialer_create()", rv);
+            goto err_1;
+        }
+
+        nng_dialer_set_bool(dialer, NNG_OPT_TCP_KEEPALIVE, true);
+
+        nng_dialer_start(dialer, NNG_FLAG_NONBLOCK);
+
+        err_1:
+        ;
+    }
+
+    return 0;
 }

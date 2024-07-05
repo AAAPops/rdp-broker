@@ -17,22 +17,43 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "nng-client.h"
+#include <nng/nng.h>
+#include <nng/protocol/reqrep0/req.h>
 
-char *srv_list[] = { "tcp://127.0.0.1:5551",
-                     "tcp://127.0.0.1:5552"};
+#include "nng-client.h"
+#include "nng-common.h"
+#include "utils.h"
+#include "nng-extras.h"
+
+#include "../broker-config.h"
+
+#define AGENTS_COUNT    2
+
+agent_t agents[AGENTS_COUNT] = {
+        { "tcp://192.168.1.121:5555", 0 },
+        { "tcp://192.168.1.122:5555", 0 }
+};
+
 
 int
 main(int argc, char **argv)
 {
 	int rc;
+    nng_socket socks[AGENTS_COUNT] = {0};
 
 	if (argc != 2) {
-		fprintf(stderr, "Usage: %s <url> <user name>\n", argv[0]);
+		fprintf(stderr, "Usage: %s <user name>\n", argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
-    nng_client(argv[1], srv_list, 2);
+    nng_log_set_logger(nng_stderr_logger);
+    nng_log_set_level(NNG_LOG_DEBUG);
+
+    nng_init_agents(agents, AGENTS_COUNT);
+    //----------------------------------------//
+
+    nng_client(argv[1], agents, AGENTS_COUNT);
+    //getchar();
 
 	exit(0);
 }
