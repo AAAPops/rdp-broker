@@ -1,13 +1,14 @@
 ### RDP Broker
 
-Цель проекта - объединить отдельные XRDP серверы в единый кластер.
-*RDP Broker* работает параллельно с XRDP. Это сделано для того, чтобы:
-1. Не вносить изменения в проект с XRDP, и в случае чего иметь возможность не отдавать исходники проекта *RDP Broker* сообществу.
-2. Проверка *proof-of-concept*
+Project goal is to combine standalone XRDP servers into one cluster.
 
-Проект *RDP Broker* построен на базе библиотек проекта *FreeRDP* и *NNG*.
+*RDP Broker* works in parallel with XRDP. It makes because:
+1. not interfere with original XRDP.
+2. test *proof-of-concept*.
 
-На каждом хосте, на котором запущен демон **xrdp** необходимо запустиь **rdp-agent** с конфигурационным файлом вида:
+*RDP Broker* built on top of libraries  *FreeRDP* и *NNG*.
+
+On every host with running **xrdp** you need to run **rdp-agent** with config file like:
 ```
 [server]
 ; examples: tcp://*:5555, tcp://127.0.0.01:5555 
@@ -21,13 +22,10 @@ level=LOG_NOTICE
 file=/opt/rdp-agent/agent.sh
 ```
 
-Из интересного здесь только *bash* скрипт "/opt/rdp-agent/agent.sh", который на вход получает имя пользователя,
-и возращает информацию о том, есть ли такой пользователь на сервере. 
-И если есть, то как давно была запущена сессия пользователя. Также скрипт возвращает значение *"RDP LA"*, 
-т.е. загрузка сервера в зависимости от количества **xrdp** сессий. Эта информация нужна для принятия решения о 
-том, где начать новую сессию, если пользователь не представлен ни на одном из серверов.
+The most interesting in this config is *bash* script "/opt/rdp-agent/agent.sh" which get UserName as input parameter and return information about existence of such a user on server.
+Also script return *"RDP LA"* (rdp load average), i.e. information that allow **rdp-broker** to start new rdp session on the least loaded server if User session not exist for now.
 
-На выделенном хосте запускается демон **rdp-broker** с конфигурационным файлом
+**rdp-broker** has to be run on dedicated server with config file like:
 ```
 [server]
 ; examples: 127.0.0.1, 192.168.1.99
@@ -47,16 +45,16 @@ url-1=tcp://192.168.1.121:5555
 url-2=tcp://192.168.1.122:5555
 ```
 
-Сертификат и ключ лучше взять из инсталляции **xrdp**, но можно сгенерировать и свой. От этого зависит, сколько раз 
-rdp-client будет спрашивать подтверждение валидности сертификата, один или два раза.
+Certificate and Key better take from **xrdp** installation, but you can generate independent ones.
+In the case of independent Certificate *rdp-client* will ask validation more than one time. 
 
-Работы по дальнейшуму улучшению проекта *RDP Broker* (тезисно):
 
-1. ~~Сделать так, чтобы broker/agent запускались как демоны~~
-2. ~~Доработать систему логирования Брокера и Агента при запуске в качестве демона~~
-3. ~~Сделать более строгую проверку того, что задается в конфигурационных файлах~~ 
-4. TLS соединение между брокером и агентами
-5. ~~Сделать обращение брокера к агентам параллельным, а не последовательным, как сейчас.~~
-Частично сделано. Стоит ли продолжать упорствовать дальше покажет время.
-6. Может быть включить логику работы bash-скрипта в состав агента. Но это только после того, как все утрясется.
-7. Придумать, как запускать демоны **rdp-broker** и **xrdp** на одном хосте, и нужно ли это вообще.
+TODO:
+
+1. ~~broker/agent have to run as daemon~~
+2. ~~More strictly check config files~~
+3. TLS connection between Broker and Agents
+4. ~~Parallel access Broker to Agents~~ Partially finished but further improvement possible.
+5. Probably include bash-script logic into Agent. But it's the last step of the project -)
+6. Think it over how to start **rdp-broker** и **xrdp** on the same host because they have to share the same port **3389**.
+Not sure if it is very important.
