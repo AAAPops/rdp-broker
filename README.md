@@ -2,52 +2,106 @@
 
 Project goal is to combine standalone XRDP servers into one cluster.
 
+A broker is the middle component between the desktops and the RDP servers. The broker need to perform the following tasks:
+
+* Check user credentials.
+* Assign users to RDP servers, reconnecting if need be. If a user is already logged into one of the RDP servers and only disconnected, send them back to that same RDP server.
+* Load balance the RDP server. If the user is not logged in, send them to the least busy server.
+
+
 *RDP Broker* works in parallel with XRDP. It makes because:
-1. not interfere with original XRDP.
-2. test *proof-of-concept*.
+* Not interfere with original XRDP.
+* Test *proof-of-concept*.
 
 *RDP Broker* built on top of libraries  *FreeRDP* и *NNG*.
 
-On every host with running **xrdp** you need to run **rdp-agent** with config file like:
+#### Build prerequisite:
+
+```
+Tested on Debian 13
+
+$ sudo apt install freerdp3-dev libnng-dev
+
+$ git clone https://github.com/AAAPops/rdp-broker.git
+$ cd rdp-broker
+$ mkdir build && cd build
+$ cmake ..
+$ make
+$ sudo make install # Install to /opt/rdp-broker/ by default
+
+# To change install path: "cmake -DCMAKE_INSTALL_PREFIX=/your/own/path .."
+```
+
+#### Run prerequisite:
+
+```
+                                                       192.168.1.121               
+                                                          ┌───────────────────────┐
+                                                          │            xrdp       │
+                 192.168.1.99               ┌────────────►o                       │
+                     ┌─────────────────┐    │             │            rdp-agent  │
+                     │                 │    │             └───────────────────────┘
+xfreerdp client      │                 │    │                                      
+      ─────────────► o     rdp-broker  ┼────┤         192.168.1.122                
+                     │                 │    │             ┌───────────────────────┐
+                     │                 │    │             │            xrdp       │
+                     └─────────────────┘    └────────────►o                       │
+                                                          │            rdp-agent  │
+                                                          └───────────────────────┘
+```
+
+1. You have to have 1 or more host with deployed **XRDP** project.
+Hosts `129.168.1.121, 192.168.1.122` in the diagram above.
+
+Share the same User's name on all Hosts over local */etc/passwd* or *LDAP*
+
+2. On every such a host with running **xrdp** you need to run **rdp-agent** with config file like:
+
+`/opt/rdp-broker/bin/rdp-agent -f /opt/rdp-broker/etc/rdp-broker/rdp-agent.ini -d`
+
 ```
 [server]
-; examples: tcp://*:5555, tcp://127.0.0.01:5555 
+; tcp://192.168.1.99:5555, tcp://127.0.0.1:5555, tcp://*:5555
 interface=tcp://192.168.1.121:5555
+;interface=tcp://192.168.1.122:5555
 
 [logs]
-; LOG_NONE, LOG_ERR, LOG_WARN, LOG_NOTICE, LOG_INFO, LOG_DEBUG
-level=LOG_NOTICE
+; LOG_ERR, LOG_WARN, LOG_INFO, LOG_DEBUG, LOG_OFF
+level=LOG_INFO
 
 [bash_script]
-file=/opt/rdp-agent/agent.sh
+file=/opt/rdp-broker/bin/agent.sh
 ```
 
-The most interesting in this config is *bash* script "/opt/rdp-agent/agent.sh" which get UserName as input parameter and return information about existence of such a user on server.
-Also script return *"RDP LA"* (rdp load average), i.e. information that allow **rdp-broker** to start new rdp session on the least loaded server if User session not exist for now.
 
-**rdp-broker** has to be run on dedicated server with config file like:
+3. You have to run **rdp-broker** on dedicated server (`192.168.1.99`) with config file like:
+
+`/opt/rdp-broker/bin/rdp-broker -f /opt/rdp-broker/etc/rdp-broker/rdp-broker.ini -d`
+
 ```
 [server]
-; examples: 127.0.0.1, 192.168.1.99
+; 192.168.1.99, 127.0.0.1, All
 interface=All
 port=3389
 
 [logs]
-; LOG_NONE, LOG_ERR, LOG_WARN, LOG_NOTICE, LOG_INFO, LOG_DEBUG
-level=LOG_NOTICE
+; LOG_ERR, LOG_WARN, LOG_INFO, LOG_DEBUG, LOG_OFF
+level=LOG_INFO
 
 [tls]
-cert=/opt/freerdp3/etc/proxy.crt
-key=/opt/freerdp3/etc/proxy.key
+cert=/opt/rdp-broker/etc/rdp-broker/ssl-cert-snakeoil.pem
+key=/opt/rdp-broker/etc/rdp-broker/ssl-cert-snakeoil.key
 
 [agents]
 url-1=tcp://192.168.1.121:5555
 url-2=tcp://192.168.1.122:5555
 ```
 
-Certificate and Key better take from **xrdp** installation, but you can generate independent ones.
+**Certificate** and **Key** better take from **xrdp** installation (*/etc/xrdp/cert.pem and /etc/xrdp/key.pem*), but you can generate independent ones.
 In the case of independent Certificate *rdp-client* will ask validation more than one time. 
 
+5. Run *rdp-client* like `"xfreerdp3 /cert:ignore ... /v:192.168.1.99"` to skip problem with certifacates validation.
+It's Ok for trusted network. 
 
 TODO:
 

@@ -14,41 +14,44 @@ cmd_Selector=$2
 
 case $cmd_Selector in
   getSrvLA )
-	sesman_count=$(ps -ef | grep -c [x]rdp-sesman)
-    srv_la=$(($sesman_count * 3))
+	xrdpX_count=$(find /var/run/xrdp/sockdir/ | grep -c xrdp_display)
+    srv_la=$(($xrdpX_count * 3))
     [ $srv_la -gt 100 ] && srv_la=100
     echo "$srv_la"
     ;;
 
   checkUser )
-	for sesman_pid in $(ps -ef | grep [x]rdp-sesman | awk '{print $2}')
-	do
-		xrdp_session_exist=$(ps -ef | grep $sesman_pid | grep Xorg | awk '{print $1}' | grep -w -c $cmd_UserName)
-		if [ $xrdp_session_exist -eq 1 ]; then
-			echo "1"
-			exit 0
-		fi
-	done
-	
-	echo "0"
+	if [ ! $(id -u $cmd_UserName 2>/dev/null) ]; then
+		echo "0"
+		exit 0
+	fi  
+  
+	user_id=$(id -u $cmd_UserName)
+	test=$(find /var/run/xrdp/sockdir/$user_id/ -name xrdp_display_* 2>/dev/null)
+	if [ $(echo $test | grep -c xrdp_display) -eq 1 ]; then 
+		echo "1"
+	else
+		echo "0"
+	fi
     ;;
 
   getJobTime )
-	for sesman_pid in $(ps -ef | grep [x]rdp-sesman | awk '{print $2}')
-	do
-		xrdp_session_exist=$(ps -ef | grep $sesman_pid | grep Xorg | awk '{print $1}' | grep -w -c $cmd_UserName)
-		if [ $xrdp_session_exist -eq 1 ]; then
-			xorg_pid=$(ps -ef | grep $sesman_pid | grep $cmd_UserName | grep Xorg | awk '{print $2}')
-			work_time=$(ps -o etimes= -p $xorg_pid | tr -d " ")		
-			echo "$work_time"
-			exit 0
-		fi
-	done
-
-	echo "0"
+	if [ ! $(id -u $cmd_UserName 2>/dev/null) ]; then
+		echo "0"
+		exit 0
+	fi  
+  
+	user_id=$(id -u $cmd_UserName)
+	test=$(find /var/run/xrdp/sockdir/$user_id/ -name xrdp_display_* 2>/dev/null)
+	if [ $(echo $test | grep -c xrdp_display) -eq 1 ]; then 
+		work_time=$(find $test -printf "%T@\n" | awk '{print int(systime() - $1)}')		
+		echo "$work_time"
+	else
+		echo "0"
+	fi
     ;;
 
   *)
-    STATEMENTS
+    echo "0"
     ;;
 esac
