@@ -23,7 +23,8 @@ set(CMAKE_C_STANDARD 11)
 #set(CMAKE_C_STANDARD_REQUIRED ON)  # Require C11 support
 #set(CMAKE_C_EXTENSIONS OFF)        # Disable compiler-specific extensions (optional)
 
-set(CMAKE_INSTALL_PREFIX "/opt/rdp-broker" CACHE PATH "" FORCE)
+set(_default_prefix "/usr/local")
+#set(CMAKE_INSTALL_PREFIX "/opt/rdp-broker" CACHE PATH "" FORCE)
 # Overwrite with 'cmake -DCMAKE_INSTALL_PREFIX=/your/custom/path ..'
 
 # Disable deprecated FreeRDP 3.x APIs
@@ -144,10 +145,21 @@ install(
 		RUNTIME DESTINATION bin          # ${CMAKE_INSTALL_PREFIX}/bin
 )
 
-install(
-		FILES rdp-broker.ini nng_src/rdp-agent.ini
-		DESTINATION etc/rdp-broker       # ${CMAKE_INSTALL_PREFIX}/etc/rdp-broker
-)
+if(CMAKE_INSTALL_PREFIX STREQUAL _default_prefix)
+	# Default behavior
+	message(STATUS "Install Configs prefix '/etc/rdp-broker'")
+	install(
+			FILES rdp-broker.ini nng_src/rdp-agent.ini
+			DESTINATION /etc/rdp-broker
+	)
+else()
+	# Custom behavior for non-default prefixes
+	message(STATUS "Install Configs prefix '${CMAKE_INSTALL_PREFIX}/etc'")
+	install(
+			FILES rdp-broker.ini nng_src/rdp-agent.ini
+			DESTINATION etc/
+	)
+endif()
 
 install(
 		FILES nng_src/agent.sh

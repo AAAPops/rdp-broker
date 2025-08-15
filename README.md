@@ -15,11 +15,11 @@ A broker is the middle component between the desktops and the RDP servers. The b
 
 *RDP Broker* built on top of libraries  *FreeRDP* и *NNG*.
 
-#### Build prerequisite:
+### Build prerequisite:
+
+**Tested on Debian 13**
 
 ```
-Tested on Debian 13
-
 $ sudo apt install freerdp3-dev libnng-dev
 
 $ git clone https://github.com/AAAPops/rdp-broker.git
@@ -27,12 +27,15 @@ $ cd rdp-broker
 $ mkdir build && cd build
 $ cmake ..
 $ make
-$ sudo make install # Install to /opt/rdp-broker/ by default
+$ sudo make install
 
-# To change install path: "cmake -DCMAKE_INSTALL_PREFIX=/your/own/path .."
+# Default install path is "/usr/local/bin" for Binaries and "/etc/rdp-broker" for Config files.
+# To change install path (all will be installed there):
+
+$ cmake -DCMAKE_INSTALL_PREFIX=/opt/rdp-broker ..
 ```
 
-#### Run prerequisite:
+### Run prerequisite:
 
 ```
                                                        192.168.1.121               
@@ -53,7 +56,7 @@ xfreerdp client      │                 │    │
 1. You have to have 1 or more host with deployed **XRDP** project.
 Hosts `129.168.1.121, 192.168.1.122` in the diagram above.
 
-Share the same User's name on all Hosts over local */etc/passwd* or *LDAP*
+Share the same User's name on all Hosts using local */etc/passwd* or *LDAP*
 
 2. On every such a host with running **xrdp** you need to run **rdp-agent** with config file like:
 
@@ -89,8 +92,8 @@ port=3389
 level=LOG_INFO
 
 [tls]
-cert=/opt/rdp-broker/etc/rdp-broker/ssl-cert-snakeoil.pem
-key=/opt/rdp-broker/etc/rdp-broker/ssl-cert-snakeoil.key
+cert=/opt/rdp-broker/etc/ssl-cert-snakeoil.pem
+key=/opt/rdp-broker/etc/ssl-cert-snakeoil.key
 
 [agents]
 url-1=tcp://192.168.1.121:5555
