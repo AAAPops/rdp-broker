@@ -20,7 +20,9 @@ A broker is the middle component between the desktops and the RDP servers. The b
 **Tested on Debian 13**
 
 ```
-$ sudo apt install freerdp3-dev libnng-dev
+$ sudo apt install build-essential pkg-config cmake
+$ sudo apt install zlib1g-dev freerdp3-dev libwinpr3-dev
+$ sudo apt install libnng-dev libinih-dev
 
 $ git clone https://github.com/AAAPops/rdp-broker.git
 $ cd rdp-broker
@@ -60,7 +62,7 @@ Share the same User's name on all Hosts using local */etc/passwd* or *LDAP*
 
 2. On every such a host with running **xrdp** you need to run **rdp-agent** with config file like:
 
-`/opt/rdp-broker/bin/rdp-agent -f /opt/rdp-broker/etc/rdp-broker/rdp-agent.ini -d`
+`/opt/rdp-broker/bin/rdp-agent -f /opt/rdp-broker/etc/rdp-agent.ini -d`
 
 ```
 [server]
@@ -79,7 +81,7 @@ file=/opt/rdp-broker/bin/agent.sh
 
 3. You have to run **rdp-broker** on dedicated server (`192.168.1.99`) with config file like:
 
-`/opt/rdp-broker/bin/rdp-broker -f /opt/rdp-broker/etc/rdp-broker/rdp-broker.ini -d`
+`/opt/rdp-broker/bin/rdp-broker -f /opt/rdp-broker/etc/rdp-broker.ini -d`
 
 ```
 [server]
