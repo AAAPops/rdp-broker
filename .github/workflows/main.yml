@@ -34,8 +34,8 @@ jobs:
         sudo dpkg --add-architecture i386
         sudo apt update
         sudo apt install -y -o Acquire::Retries=50 \
-                        build-essential pkg-config cmake
-                        zlib1g-dev freerdp3-dev libwinpr3-dev
+                        build-essential pkg-config cmake \
+                        zlib1g-dev freerdp3-dev libwinpr3-dev \
                         libnng-dev libinih-dev
 
     - name: Build broker
