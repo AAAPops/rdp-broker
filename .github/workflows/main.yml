@@ -45,10 +45,10 @@ jobs:
         cmake ..
         make
 
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v1
-      with:
-        path: doc
+    #- name: Upload artifact
+     # uses: actions/upload-pages-artifact@v3
+     # with:
+      #  path: doc
 
   deploy:
     needs: make-broker
