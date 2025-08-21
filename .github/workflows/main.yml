@@ -52,11 +52,18 @@ jobs:
         cp ./rdp-* $ARTIFACT
         cp ../rdp-*.ini $ARTIFACT
 
+    - name: Upload logs on fail
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build failure logs
+          path: ${{ runner.temp }}/build_logs
+                ${{ github.workspace }}/build
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        path: ${{ github.workspace }}/build 
-        #$ARTIFACT
+        path: $ARTIFACT
 
   deploy:
     needs: make-broker
