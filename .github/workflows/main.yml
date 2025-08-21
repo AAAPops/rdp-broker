@@ -51,7 +51,7 @@ jobs:
         path: doc
 
   deploy:
-    needs: build
+    needs: make-broker
 
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
 
