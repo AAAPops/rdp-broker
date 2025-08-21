@@ -2,14 +2,14 @@ name: CI for rdp-broker
 
 on:
   push:
-    branches: [ master ]
+    #branches: [ master ]
     branches-ignore:
       - "debian/**"
     paths-ignore:
       - "README.md"
       - "README_RU.md"
   pull_request:
-    branches: [ master ]
+    #branches: [ master ]
     branches-ignore:
       - "debian/**"
     paths-ignore:
