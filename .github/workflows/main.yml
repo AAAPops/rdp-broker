@@ -57,8 +57,8 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Build failure logs
-        path: ${{ runner.temp }}/build_logs
-              ${{ github.workspace }}/build
+        path: ${{ github.workspace }}/build/
+        #${{ runner.temp }}/build_logs
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
