@@ -102,16 +102,25 @@ nng_client(const char *username, agent_t *agent, int agent_count)
         //nng_close(sock);
 
         nng_log_info(NULL, "-----");
-        nng_log_info(NULL, "User '%s'", info[i].usreName);
-        nng_log_info(NULL, "   - on Server      '%s'", info[i].srvURL);
-        nng_log_info(NULL, "   - srv LA:        %d",  info[i].srvLA);
-        nng_log_info(NULL, "   - srv Alive:     %d",  info[i].srvAlive);
+        if ( info[i].usrPresent == UINT32_MAX )
+            nng_log_info(NULL, "User '%s' not present...", info[i].usreName);
+        else
+            nng_log_info(NULL, "User '%s'", info[i].usreName);
+
+        nng_log_info(NULL, "   - on Server          '%s'", info[i].srvURL);
+        nng_log_info(NULL, "   - srv LA:            %d%%",  info[i].srvLA);
+        nng_log_info(NULL, "   - srv Alive:         %d",  info[i].srvAlive);
         nng_log_info(NULL, "   -");
-        nng_log_info(NULL, "   - user present:  %d",  info[i].usrPresent);
-        nng_log_info(NULL, "   - user job time: %ld", info[i].usrJobTime);
+
+        if ( info[i].usrPresent == UINT32_MAX )
+            nng_log_info(NULL, "   - Xrdp session:      %d",  0);
+        else
+            nng_log_info(NULL, "   - Xrdp session:      %d",  info[i].usrPresent);
+
+        nng_log_info(NULL, "   - Xrdp session time: %ld sec.", info[i].usrJobTime);
     }
 
-    // Make decision if user PRESENT on any host
+    // Make decision if user's session  PRESENT on any host
     uint64_t    tmpJobTime = 0;
     uint32_t    tmpLA = UINT32_MAX;
     char        tmpURL[128] = {0};
@@ -134,8 +143,12 @@ nng_client(const char *username, agent_t *agent, int agent_count)
     }
 
 
-    // Make decision if user NOT present on any host
+    // Make decision if user's session NOT present on any host
     for (int i = 0; i < agent_count; i++) {
+        // Skip agent if User absent on Server
+        if ( info[i].usrPresent == UINT32_MAX )
+            continue;
+
         if ( (info[i].srvAlive == 1) && (info[i].srvLA < tmpLA) )
         {
             tmpLA = info[i].srvLA;

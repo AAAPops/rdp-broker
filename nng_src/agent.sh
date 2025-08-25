@@ -22,7 +22,7 @@ case $cmd_Selector in
 
   checkUser )
 	if [ ! $(id -u $cmd_UserName 2>/dev/null) ]; then
-		echo "0"
+		echo "-1"
 		exit 0
 	fi  
   

@@ -95,8 +95,9 @@ int calc_srv_la(char *username) {
 }
 
 /* return:
- *      0 - User absent
- *      1 - User present on host
+ *   UINT32_MAX - User absent on host
+ *            0 - User's session absent on host
+ *            1 - User session present on host
  */
 int is_user_on_host(char *username) {
 
@@ -110,9 +111,12 @@ int is_user_on_host(char *username) {
         if ( output[i] == 0x0a )
             output[i] = 0;
     }
-    //printf("--- checkUser: '%s'\n", output);
+    printf(">>>>>>>>> checkUser: '%s'\n", output);
 
-    return atoi(output);
+    if (strcmp(output, "-1") == 0 )
+        return UINT32_MAX;
+    else
+        return atoi(output);
 }
 
 uint64_t calc_user_work_time(char *username) {
